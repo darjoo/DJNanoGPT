@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from dataclasses import dataclass
 
 from ..config import GPTConfig
-from . import LayerNorm, Block
+from . import Block
 
 class GPT(nn.Module):
     """
@@ -24,8 +24,8 @@ class GPT(nn.Module):
             word_token_embed = nn.Embedding(config.vocab_size, config.n_embedding),
             word_position_embed = nn.Embedding(config.block_size, config.n_embedding),
             drop = nn.Dropout(config.dropout),
-            hidden = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
-            ln_final = LayerNorm(config.n_embedding, bias=config.bias)
+            hidden = nn.Sequential(*[Block(config) for _ in range(config.n_layer)]),
+            ln_final = nn.LayerNorm(config.n_embedding, bias=config.bias)
         ))
         self.lm_head = nn.Linear(config.n_embedding, config.vocab_size, bias=False)
         # Weight tying, shares the weight matrix between word_token_embed and lm_head
@@ -75,8 +75,7 @@ class GPT(nn.Module):
         position_embeddings = self.transformer.word_position_embed(pos)  # Shape (seq_len, n_embedding)
         combined_embeddings = token_embeddings + position_embeddings  # Shape (batch_size, seq_len, n_embedding)
         x = self.transformer.drop(combined_embeddings) # Apply dropout after adding token and position embeddings
-        for block in self.transformer.hidden:
-            x = block(x) # Sequentially pass through each transformer hidden block
+        x = self.transformer.hidden(x)
         x = self.transformer.ln_final(x) # Final layer norm
 
         if targets is not None:

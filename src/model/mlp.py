@@ -11,7 +11,7 @@ class MLP(nn.Module):
         # Expansion: n_embedding -> 4 * n_embedding
         # Original "Attention is All You Need" paper used this 4x expansion factor
         self.linear = nn.Linear(config.n_embedding, 4 * config.n_embedding, bias=config.bias)
-        self.gelu = nn.GELU()
+        self.gelu = nn.GELU(approximate='tanh')
         # Projection: 4 * n_embedding -> n_embedding
         self.projection = nn.Linear(4 * config.n_embedding, config.n_embedding, bias=config.bias)
         self.dropout = nn.Dropout(config.dropout)
