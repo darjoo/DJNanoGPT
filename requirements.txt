@@ -1,0 +1,9 @@
+torch --index-url https://download.pytorch.org/whl/cu129
+torchvision --index-url https://download.pytorch.org/whl/cu129
+pytest
+datasets
+tiktoken
+hf_xet
+numpy
+triton-windows
+mlflow
