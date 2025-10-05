@@ -1,4 +1,5 @@
 import inspect
+import math
 
 import torch
 import torch.nn as nn
@@ -15,9 +16,6 @@ class GPT(nn.Module):
     """
     def __init__(self, config: GPTConfig):
         super().__init__()
-
-        assert config.vocab_size is not None, "vocab_size must be specified in the config"
-        assert config.block_size is not None, "block_size must be specified in the config"
         self.config = config
 
         self.transformer = nn.ModuleDict(dict(
@@ -37,7 +35,7 @@ class GPT(nn.Module):
         # Apply special scaled initialization to the residual projections, per GPT-2 paper
         for name, param in self.named_parameters():
             if name.endswith('c_proj.weight'):
-                nn.init.normal_(param, mean=0.0, std=0.02 / ((2 * config.n_layer) ** 0.5))
+                nn.init.normal_(param, mean=0.0, std=0.02 / math.sqrt(2 * config.n_layer))
 
         # Number of parameters
         print(f"Number of parameters: {self.get_num_params()/1e6:.2f}M")
@@ -66,7 +64,7 @@ class GPT(nn.Module):
     
     def forward(self, idx, targets=None):
         device = idx.device
-        batch_size, seq_len = idx.size()
+        _, seq_len = idx.size() # (batch_size, sequence_length)
         assert seq_len <= self.config.block_size, f"Cannot forward sequence of length {seq_len}, the block size is {self.config.block_size}."
         pos = torch.arange(0, seq_len, dtype=torch.long, device=device)
 
@@ -90,6 +88,7 @@ class GPT(nn.Module):
         
         return logits, loss
     
+    # Maybe remove
     def crop_block_size(self, block_size):
         """
         Crop the model's block size to the specified value.
@@ -104,6 +103,7 @@ class GPT(nn.Module):
             if hasattr(block.attention, 'bias'):
                 block.attention.bias = block.attention.bias[:, :, :block_size, :block_size]
 
+    # Maybe remove
     def configure_optimizers(self, weight_decay: float, learning_rate: float, betas: tuple, device_type: str):
         # Start with all of the candidate parameters
         param_dict = {pn: p for pn, p in self.named_parameters()}
@@ -142,6 +142,7 @@ class GPT(nn.Module):
 
         return optimizer
     
+    # Maybe remove
     def estimate_mfu(self,  fwdbwd_per_iter, dt):
         """
         Estimate the model flops utilization (MFU) given the number of forward+backward passes per iteration
