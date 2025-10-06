@@ -12,7 +12,7 @@ def parse_args() -> argparse.Namespace:
                        help='Force CPU usage instead of GPU')
     parser.add_argument('--train', action='store_true', 
                        help='Flag to indicate training mode')
-    parser.add_argument('--resume', action='store_true', 
+    parser.add_argument('--resume', type=str, default=None, 
                        help='Path to a checkpoint to resume training from')
     parser.add_argument('--infer', action='store_true', 
                        help='Flag to indicate inference mode')

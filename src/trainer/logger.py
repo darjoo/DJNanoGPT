@@ -19,11 +19,12 @@ class Logger:
             # Set experiment
             mlflow.set_experiment(logging_config.mlflow_experiment_name)
 
-            # Start MLflow run
-            mlflow.start_run()
-
             print(f"MLflow tracking started. Experiment: {logging_config.mlflow_experiment_name}")
             print(f"MLflow UI available at: mlflow ui --backend-store-uri {logging_config.mlflow_tracking_uri}")
+
+    def start_run(self, run_id: str = None):
+        if self.mlflow:
+            mlflow.start_run(run_id=run_id)
 
     def log_params(self, params: dict):
         if self.mlflow:

@@ -33,7 +33,7 @@ class TrainingConfig:
     min_lr: float = 6e-5 
     eval_iters: int = 500
     batch_size: int = 32 # Number of sequences processed in one forward/backward pass
-    block_size: int = 128 # Context/Sequence length
+    block_size: int = 256 # Context/Sequence length
     gradient_accumulation_steps: int = 32
     weight_decay: float = 0.1
     beta1: float = 0.9

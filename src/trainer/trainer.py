@@ -5,6 +5,7 @@ import os
 import time
 import torch
 
+from src.config import GPTConfig
 from src.model import GPT
 from src.config import TrainingConfig, LoggingConfig
 from .dataloader import DataLoader
@@ -26,6 +27,7 @@ class Trainer:
         self.current_iter = 0
         self.train_losses = []
         self.val_losses = []
+        self.log_run_id = None
 
         # Initialize the model
         self.model_args = dict(
@@ -72,11 +74,14 @@ class Trainer:
 
     def resume(self):
         print(f"Resuming training from checkpoint: {self.resume_checkpoint}")
-        checkpoint = torch.load(self.resume_checkpoint, map_location=self.device)
+
+        torch.serialization.add_safe_globals([GPTConfig])
+
+        checkpoint = torch.load(f"{os.path.join(self.training_config.checkpoint_dir, self.resume_checkpoint)}", map_location=self.device)
         checkpoint_model_args = checkpoint['model_args']
 
         # Force config parameters to be the same as in the checkpoint
-        for k in ['n_layer', 'n_head', 'n_embd', 'block_size', 'bias', 'vocab_size']:
+        for k in ['n_layer', 'n_head', 'n_embedding', 'block_size', 'bias', 'vocab_size']:
             assert self.model_args[k] == checkpoint_model_args[k], f"for {k}, config file has {self.model_args[k]} but ckpt has {checkpoint_model_args[k]}"
         
         state_dict = checkpoint['model']
@@ -90,6 +95,7 @@ class Trainer:
         self.model.load_state_dict(state_dict)
         self.iter_num = checkpoint['iter_num']
         self.best_val_loss = checkpoint['best_val_loss']
+        self.log_run_id = checkpoint['mlflow_experiment_name']
         print(f"resumed from iteration {self.iter_num}, best val loss {self.best_val_loss:.4f}")
 
     def get_lr(self, iteration):
@@ -182,7 +188,7 @@ class Trainer:
             'iteration': self.iter_num,
         }
 
-        mlflow.log_metrics(metrics, step=self.iter_num)
+        self.logger.log_metrics(metrics, step=self.iter_num)
 
         self.val_losses.append(losses['validation'])
 
@@ -197,6 +203,8 @@ class Trainer:
         if self.resume_checkpoint is not None:
             self.resume()
 
+        self.logger.start_run(self.log_run_id)
+
         # Compile the model
         if self.training_config.compile:
             print("compiling the model... (this may take a while)")
@@ -207,9 +215,8 @@ class Trainer:
         print(f"Training started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}")
 
         current_loss = self.train_step()
+        local_iter_num = 0
         while True:
-            self.current_iter = self.iter_num
-
             # Determine and set the learning rate for this iteration
             current_lr = self.get_lr(self.iter_num) if self.training_config.decay_lr else self.training_config.learning_rate
             for param_group in self.optimizer.param_groups:
@@ -225,10 +232,11 @@ class Trainer:
             }
             self.logger.log_metrics(step_metrics, step=self.iter_num)
 
-            if self.iter_num % self.training_config.eval_iters == 0:
+            if local_iter_num != 0 and self.iter_num % self.training_config.eval_iters == 0:
                 self.evaluate()
 
             self.iter_num += 1
+            local_iter_num += 1
             if self.iter_num >= self.training_config.max_iters:
                 break
 
