@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 
 @dataclass
 class GPTConfig:
@@ -10,3 +10,11 @@ class GPTConfig:
     n_embedding: int = 384
     dropout: float = 0.1
     bias: bool = True
+
+    def get(self, key, default=None):
+        """Mimic dict.get() so libraries expecting a dict config work."""
+        return getattr(self, key, default)
+
+    def to_dict(self):
+        """For full compatibility with HF-style configs."""
+        return asdict(self)

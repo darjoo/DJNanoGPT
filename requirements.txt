@@ -7,3 +7,4 @@ hf_xet
 numpy
 triton-windows
 mlflow
+peft

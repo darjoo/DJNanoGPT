@@ -65,7 +65,7 @@ class Trainer:
         
         # Logger
         logging_config = LoggingConfig()
-        self.logger = Logger(logging_config, self.training_config)
+        self.logger = Logger(logging_config)
 
     def init_optimizer(self):
         self.optimizer = torch.optim.AdamW(self.model.parameters(),

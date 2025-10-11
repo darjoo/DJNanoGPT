@@ -6,3 +6,5 @@ out/
 mlflow_runs/
 mlruns/
 *.bin
+checkpoints/
+finetune_checkpoints/

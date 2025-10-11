@@ -3,11 +3,25 @@ import os
 import torch
 
 class DataLoader:
-    def __init__(self, data_dir: str, block_size: int, batch_size: int, device: str):
+    def __init__(self, data_dir: str, block_size: int, batch_size: int, device: str, random: bool = True):
         self.data_dir = data_dir
         self.block_size = block_size
         self.batch_size = batch_size
         self.device = device
+        self.random = random
+        self.current_i = 0
+
+    def get_data_size(self, split: str) -> int:
+        if split == 'train':
+            data = np.memmap(os.path.join(self.data_dir, 'tinystories_train.bin'), dtype=np.uint16, mode='r')
+        elif split == 'validation':
+            data = np.memmap(os.path.join(self.data_dir, 'tinystories_validation.bin'), dtype=np.uint16, mode='r')
+        elif split == 'finetune':
+            data = np.memmap(os.path.join(self.data_dir, 'tinystories_finetune.bin'), dtype=np.uint16, mode='r')
+        else:
+            raise ValueError("split must be 'train', 'validation', or 'finetune'")
+        
+        return len(data)
 
     def get_batch(self, split):
         """
@@ -18,7 +32,7 @@ class DataLoader:
         and the sequence shifted by one as target (y)
         
         Args:
-            split (str): 'train' or 'validation'
+            split (str): 'train' or 'validation' or 'finetune'
         
         Returns:
             x (torch.Tensor): Input tensor of shape (batch_size, block_size)
@@ -27,9 +41,18 @@ class DataLoader:
         # Recreate memmap every batch to avoid memory leak
         if split == 'train':
             data = np.memmap(os.path.join(self.data_dir, 'tinystories_train.bin'), dtype=np.uint16, mode='r')
-        else:
+        elif split == 'validation':
             data = np.memmap(os.path.join(self.data_dir, 'tinystories_validation.bin'), dtype=np.uint16, mode='r')
-        ix = torch.randint(len(data) - self.block_size, (self.batch_size,))
+        elif split == 'finetune':
+            data = np.memmap(os.path.join(self.data_dir, 'tinystories_finetune.bin'), dtype=np.uint16, mode='r')
+        else:
+            raise ValueError("split must be 'train', 'validation', or 'finetune'")
+        if self.random:
+            ix = torch.randint(len(data) - self.block_size, (self.batch_size,))
+        else:
+            ix = torch.arange(self.current_i, self.current_i + self.batch_size) % (len(data) - self.block_size)
+            self.current_i += self.batch_size
+            self.current_i %= len(data)
         x = torch.stack([torch.from_numpy((data[i:i+self.block_size]).astype(np.int64)) for i in ix])
         y = torch.stack([torch.from_numpy((data[i+1:i+self.block_size+1]).astype(np.int64)) for i in ix])
         if self.device == 'cuda':
