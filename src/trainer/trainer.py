@@ -164,7 +164,7 @@ class Trainer:
         self.model.train()
         return out
     
-    def save_checkpoint(self):
+    def save_checkpoint(self, name: str = 'ckpt.pt'):
         checkpoint = {
                     'model': self.model.state_dict(),
                     'optimizer': self.optimizer.state_dict(),
@@ -174,8 +174,8 @@ class Trainer:
                     'config': self.model.config,
                     'mlflow_experiment_name': mlflow.active_run().info.run_id
                 }
-        print(f"saving checkpoint to {self.training_config.checkpoint_dir}/ckpt.pt")
-        ckpt_path = os.path.join(self.training_config.checkpoint_dir, 'ckpt.pt')
+        ckpt_path = os.path.join(self.training_config.checkpoint_dir, name)
+        print(f"saving checkpoint to {ckpt_path}. Best val loss so far: {self.best_val_loss:.4f} at iteration {self.iter_num}")
         torch.save(checkpoint, ckpt_path)
 
     def evaluate(self):
@@ -216,6 +216,7 @@ class Trainer:
 
         current_loss = self.train_step()
         local_iter_num = 0
+
         while True:
             # Determine and set the learning rate for this iteration
             current_lr = self.get_lr(self.iter_num) if self.training_config.decay_lr else self.training_config.learning_rate
