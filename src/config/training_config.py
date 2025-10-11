@@ -26,9 +26,9 @@ class TrainingConfig:
     """
 
     learning_rate: float = 1e-4
-    lr_decay_iters: int = 6000000
+    lr_decay_iters: int = 20000
     decay_lr = True # whether to decay the learning rate
-    max_iters: int = 50000
+    max_iters: int = 30000
     warmup_steps: int = 1000
     min_lr: float = 6e-5 
     eval_iters: int = 500
