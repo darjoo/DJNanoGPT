@@ -5,4 +5,4 @@ venv/
 out/
 mlflow_runs/
 mlruns/
-src/data/
+*.bin
