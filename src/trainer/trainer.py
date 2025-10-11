@@ -13,6 +13,8 @@ from .logger import Logger
 
 class Trainer:
     def __init__(self, model: GPT, training_config: TrainingConfig, device: str, resume_checkpoint: str = None):
+        print(f"Training with the following config:\n{training_config}, device: {device}")
+
         self.model = model
         self.training_config = training_config
         self.device = device

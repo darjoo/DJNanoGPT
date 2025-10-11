@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 @dataclass
 class GPTConfig:
-    block_size: int = 256
+    block_size: int = 256 # Context/Sequence length
     # Padded up to nearest multiple of 64 for efficiency
     vocab_size: int = 50257 
     n_layer: int = 6
