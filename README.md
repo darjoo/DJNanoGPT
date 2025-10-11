@@ -236,6 +236,18 @@ pytest test/
 - **Dropout**: 0.1
 - Memory-efficient adaptation with frozen base model
 
+## Training 
+
+- Dataset: [roneneldan/TinyStories](https://huggingface.co/datasets/roneneldan/TinyStories)
+- Steps: 10000
+- Trained on # tokens: ~2B
+- Hardware:
+    - Nvidia 5090 32GB VRAM
+    - 64GB RAM
+- Time: 1.7h
+
+![image](images/eval_train_val_loss.jpg)
+
 ## Troubleshooting
 
 ### CUDA Not Available
