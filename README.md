@@ -1,6 +1,6 @@
 # DJGPT
 
-A custom GPT (Generative Pre-trained Transformer) implementation with training, fine-tuning, and inference capabilities. This project includes support for LoRA (Low-Rank Adaptation) fine-tuning and uses MLflow for experiment tracking.
+A nano GPT (Generative Pre-trained Transformer) implementation of GPT-2 with training, fine-tuning, and inference capabilities. This project includes support for LoRA (Low-Rank Adaptation) fine-tuning and uses MLflow for experiment tracking.
 
 ## Features
 
