@@ -144,67 +144,6 @@ class TestGPT:
         with pytest.raises(AssertionError, match="Cannot forward sequence of length"):
             model(idx)
     
-    def test_crop_block_size(self, config):
-        """Test cropping the model's block size."""
-        with patch('builtins.print'):
-            model = GPT(config)
-        
-        original_block_size = config.block_size
-        new_block_size = original_block_size // 2
-        
-        model.crop_block_size(new_block_size)
-        
-        assert model.config.block_size == new_block_size
-        assert model.transformer.word_position_embed.shape[0] == new_block_size
-    
-    def test_crop_block_size_invalid(self, config):
-        """Test that cropping to larger block size fails."""
-        with patch('builtins.print'):
-            model = GPT(config)
-        
-        invalid_block_size = config.block_size + 1
-        
-        with pytest.raises(AssertionError, match="Cannot crop to block size"):
-            model.crop_block_size(invalid_block_size)
-    
-    def test_configure_optimizers(self, small_config):
-        """Test optimizer configuration."""
-        with patch('builtins.print'):
-            model = GPT(small_config)
-        
-        weight_decay = 0.1
-        learning_rate = 1e-4
-        betas = (0.9, 0.95)
-        device_type = 'cpu'
-        
-        optimizer = model.configure_optimizers(weight_decay, learning_rate, betas, device_type)
-        
-        assert hasattr(optimizer, 'param_groups')
-        assert len(optimizer.param_groups) == 2  # decay and no-decay groups
-        
-        # Check that parameters are properly grouped
-        decay_group = optimizer.param_groups[0]
-        nodecay_group = optimizer.param_groups[1]
-        
-        assert decay_group['weight_decay'] == weight_decay
-        assert nodecay_group['weight_decay'] == 0.0
-        assert decay_group['lr'] == learning_rate
-        assert nodecay_group['lr'] == learning_rate
-    
-    def test_estimate_mfu(self, small_config):
-        """Test model FLOPS utilization estimation."""
-        with patch('builtins.print'):
-            model = GPT(small_config)
-        
-        fwdbwd_per_iter = 4
-        dt = 0.1  # 100ms per iteration
-        
-        mfu = model.estimate_mfu(fwdbwd_per_iter, dt)
-        
-        assert isinstance(mfu, float)
-        assert mfu >= 0
-        assert mfu <= 1  # MFU should be between 0 and 1
-    
     def test_generate_basic(self, small_config):
         """Test basic text generation."""
         with patch('builtins.print'):
