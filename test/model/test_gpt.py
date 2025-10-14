@@ -3,7 +3,7 @@ import torch.nn as nn
 import pytest
 from unittest.mock import patch
 
-from src.model import GPT
+from src.model import GPT2
 from src.config import GPTConfig
 
 
@@ -41,7 +41,7 @@ class TestGPT:
     def test_gpt_init_with_valid_config(self, config):
         """Test GPT initialization with valid configuration."""
         with patch('builtins.print'):  # Suppress print statements
-            model = GPT(config)
+            model = GPT2(config)
         
         assert isinstance(model, nn.Module)
         assert model.config == config
@@ -71,18 +71,18 @@ class TestGPT:
         """Test that GPT initialization fails without vocab_size."""
         config = GPTConfig(vocab_size=None, block_size=128)
         with pytest.raises(AssertionError, match="vocab_size must be specified"):
-            GPT(config)
+            GPT2(config)
     
     def test_gpt_init_without_block_size(self):
         """Test that GPT initialization fails without block_size."""
         config = GPTConfig(vocab_size=1000, block_size=None)
         with pytest.raises(AssertionError, match="block_size must be specified"):
-            GPT(config)
+            GPT2(config)
     
     def test_get_num_params(self, small_config):
         """Test parameter counting functionality."""
         with patch('builtins.print'):
-            model = GPT(small_config)
+            model = GPT2(small_config)
         
         total_params = model.get_num_params()
         non_embedding_params = model.get_num_params(non_embedding=True)
@@ -100,7 +100,7 @@ class TestGPT:
     def test_forward_training_mode(self, small_config):
         """Test forward pass with targets (training mode)."""
         with patch('builtins.print'):
-            model = GPT(small_config)
+            model = GPT2(small_config)
         model.eval()  # Set to eval mode to avoid randomness from dropout
         
         batch_size, seq_len = 2, 16
@@ -119,7 +119,7 @@ class TestGPT:
     def test_forward_inference_mode(self, small_config):
         """Test forward pass without targets (inference mode)."""
         with patch('builtins.print'):
-            model = GPT(small_config)
+            model = GPT2(small_config)
         model.eval()
         
         batch_size, seq_len = 2, 16
@@ -135,7 +135,7 @@ class TestGPT:
     def test_forward_sequence_too_long(self, small_config):
         """Test that forward pass fails with sequence longer than block_size."""
         with patch('builtins.print'):
-            model = GPT(small_config)
+            model = GPT2(small_config)
         
         batch_size = 2
         seq_len = small_config.block_size + 1  # Longer than block_size
@@ -147,7 +147,7 @@ class TestGPT:
     def test_generate_basic(self, small_config):
         """Test basic text generation."""
         with patch('builtins.print'):
-            model = GPT(small_config)
+            model = GPT2(small_config)
         model.eval()
         
         # Start with a simple context
@@ -169,7 +169,7 @@ class TestGPT:
     def test_generate_with_temperature(self, small_config):
         """Test generation with different temperature values."""
         with patch('builtins.print'):
-            model = GPT(small_config)
+            model = GPT2(small_config)
         model.eval()
         
         idx = torch.randint(0, small_config.vocab_size, (1, 5))
@@ -185,7 +185,7 @@ class TestGPT:
     def test_generate_with_top_k(self, small_config):
         """Test generation with top-k sampling."""
         with patch('builtins.print'):
-            model = GPT(small_config)
+            model = GPT2(small_config)
         model.eval()
         
         idx = torch.randint(0, small_config.vocab_size, (1, 5))
@@ -201,7 +201,7 @@ class TestGPT:
     def test_generate_long_context(self, small_config):
         """Test generation when context exceeds block size."""
         with patch('builtins.print'):
-            model = GPT(small_config)
+            model = GPT2(small_config)
         model.eval()
         
         # Create context longer than block_size
@@ -219,12 +219,12 @@ class TestGPT:
         """Test that model produces deterministic outputs with fixed seed."""
         torch.manual_seed(42)
         with patch('builtins.print'):
-            model1 = GPT(small_config)
+            model1 = GPT2(small_config)
         model1.eval()
         
         torch.manual_seed(42)
         with patch('builtins.print'):
-            model2 = GPT(small_config)
+            model2 = GPT2(small_config)
         model2.eval()
         
         idx = torch.randint(0, small_config.vocab_size, (1, 10))
@@ -238,7 +238,7 @@ class TestGPT:
     def test_gradient_flow(self, small_config):
         """Test that gradients flow properly through the model."""
         with patch('builtins.print'):
-            model = GPT(small_config)
+            model = GPT2(small_config)
         model.train()
         
         batch_size, seq_len = 2, 10
@@ -278,7 +278,7 @@ class TestGPTIntegration:
         )
         
         with patch('builtins.print'):
-            model = GPT(config)
+            model = GPT2(config)
         
         optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
         
@@ -311,7 +311,7 @@ class TestGPTIntegration:
         )
         
         with patch('builtins.print'):
-            model = GPT(config)
+            model = GPT2(config)
         model.eval()
         
         # Start with a prompt

@@ -1,16 +1,13 @@
-import inspect
 import math
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from dataclasses import dataclass
-
 from ..config import GPTConfig
 from . import Block
 
-class GPT(nn.Module):
+class GPT2(nn.Module):
     """
     GPT Language Model
     """

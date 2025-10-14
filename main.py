@@ -4,7 +4,7 @@ import tiktoken
 from peft import LoraConfig, get_peft_model
 
 from src.config import GPTConfig, TrainingConfig, FinetuneConfig
-from src.model import GPT
+from src.model import GPT2
 from src.trainer import Trainer, FineTuner
 
 def parse_args() -> argparse.Namespace:
@@ -52,7 +52,7 @@ def main():
         device = 'cuda'
 
     model_config = GPTConfig()
-    model = GPT(model_config).to(device)
+    model = GPT2(model_config).to(device)
 
     if args.train:
         training_config = TrainingConfig()

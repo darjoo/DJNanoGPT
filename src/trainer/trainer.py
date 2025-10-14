@@ -6,13 +6,13 @@ import time
 import torch
 
 from src.config import GPTConfig
-from src.model import GPT
+from src.model import GPT2
 from src.config import TrainingConfig, LoggingConfig
 from .dataloader import DataLoader
 from .logger import Logger
 
 class Trainer:
-    def __init__(self, model: GPT, training_config: TrainingConfig, device: str, resume_checkpoint: str = None):
+    def __init__(self, model: GPT2, training_config: TrainingConfig, device: str, resume_checkpoint: str = None):
         print(f"Training with the following config:\n{training_config}, device: {device}")
 
         self.model = model
