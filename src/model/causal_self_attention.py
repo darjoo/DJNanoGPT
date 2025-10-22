@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from ..config.gpt_config import GPTConfig
+from ..config import GPTConfig
 
 class CausalSelfAttention(nn.Module):
     """

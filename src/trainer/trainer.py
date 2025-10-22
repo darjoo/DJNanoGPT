@@ -6,13 +6,13 @@ import time
 import torch
 
 from src.config import GPTConfig
-from src.model import GPT2
+from src.model import GPT
 from src.config import TrainingConfig, LoggingConfig
 from .dataloader import DataLoader
 from .logger import Logger
 
 class Trainer:
-    def __init__(self, model: GPT2, training_config: TrainingConfig, device: str, resume_checkpoint: str = None):
+    def __init__(self, model: GPT, training_config: TrainingConfig, device: str, resume_checkpoint: str = None):
         print(f"Training with the following config:\n{training_config}, device: {device}")
 
         self.model = model
@@ -33,10 +33,10 @@ class Trainer:
 
         # Initialize the model
         self.model_args = dict(
-            n_layer = model.config.n_layer,
-            n_head = model.config.n_head,
-            n_embedding = model.config.n_embedding,
-            block_size = model.config.block_size,
+            n_layer = model.config.num_hidden_layers,
+            n_head = model.config.num_attention_heads,
+            n_embedding = model.config.hidden_size,
+            block_size = model.config.max_position_embeddings,
             dropout = model.config.dropout,
             bias = model.config.bias,
             vocab_size = None,

@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from ..config import GPTConfig
-from . import CasualSelfAttention, MLP
+from . import CausalSelfAttention, MLP
 
 class Block(nn.Module):
     """
@@ -10,7 +10,7 @@ class Block(nn.Module):
     def __init__(self, config: GPTConfig):
         super().__init__()
         self.ln_1 = nn.LayerNorm(config.hidden_size, bias=config.bias)
-        self.attention = CasualSelfAttention(config)
+        self.attention = CausalSelfAttention(config)
         self.ln_2 = nn.LayerNorm(config.hidden_size, bias=config.bias)
         self.mlp = MLP(config)
 

@@ -8,6 +8,7 @@ from peft import LoraConfig, get_peft_model, TaskType
 
 from src.config import FinetuneConfig, GPTConfig, LoggingConfig
 from src.trainer import DataLoader, Logger
+from src.model import GPT
 
 class FineTuner:
     def __init__(self, checkpoint_path, finetune_config: FinetuneConfig, gpt_config: GPTConfig, device: str):
@@ -18,6 +19,9 @@ class FineTuner:
         print(f"Loading model for finetuning from {checkpoint_path}")
         torch.serialization.add_safe_globals([GPTConfig])
         self.checkpoint = torch.load(checkpoint_path, map_location=device)
+
+        # Initialize the model first
+        self.model = GPT(gpt_config).to(device)
 
         state_dict = self.checkpoint['model']
 
