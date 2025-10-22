@@ -13,7 +13,6 @@ class GPTConfig(PretrainedConfig):
                  bias: bool = True,
                  bos_token_id: int = 50256,
                  eos_token_id: int = 50256,
-                 initializer_range: float = 0.02,
                  tie_word_embeddings: bool = True,
                  **kwargs):
         self.vocab_size = vocab_size
@@ -23,7 +22,6 @@ class GPTConfig(PretrainedConfig):
         self.max_position_embeddings = max_position_embeddings
         self.dropout = dropout
         self.bias = bias
-        self.initializer_range = initializer_range
         self.bos_token_id = bos_token_id
         self.eos_token_id = eos_token_id
         
