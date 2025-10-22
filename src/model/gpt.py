@@ -3,47 +3,70 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from transformers import PreTrainedModel
 
 from ..config import GPTConfig
 from . import Block
 
-class GPT2(nn.Module):
+class GPT(PreTrainedModel):
     """
     GPT Language Model
     """
+    config_class = GPTConfig
+    _tied_weights_keys = ["lm_head.weight"]
+
     def __init__(self, config: GPTConfig):
-        super().__init__()
+        super().__init__(config)
         self.config = config
 
         self.transformer = nn.ModuleDict(dict(
-            word_token_embed = nn.Embedding(config.vocab_size, config.n_embedding),
-            word_position_embed = nn.Embedding(config.block_size, config.n_embedding),
+            word_token_embed = nn.Embedding(config.vocab_size, config.hidden_size),
+            word_position_embed = nn.Embedding(config.max_position_embeddings, config.hidden_size),
             drop = nn.Dropout(config.dropout),
-            hidden = nn.Sequential(*[Block(config) for _ in range(config.n_layer)]),
-            ln_final = nn.LayerNorm(config.n_embedding, bias=config.bias)
+            hidden = nn.Sequential(*[Block(config) for _ in range(config.num_hidden_layers)]),
+            ln_final = nn.LayerNorm(config.hidden_size, bias=config.bias)
         ))
-        self.lm_head = nn.Linear(config.n_embedding, config.vocab_size, bias=False)
-        # Weight tying, shares the weight matrix between word_token_embed and lm_head
-        self.transformer.word_token_embed.weight = self.lm_head.weight
+        self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
 
         # Initialize weights
-        self.apply(self._init_weights)
+        self.post_init()
+        
+    def get_input_embeddings(self):
+        return self.transformer.word_token_embed
+    
+    def set_input_embeddings(self, new_embeddings):
+        self.transformer.word_token_embed = new_embeddings
+    
+    def get_output_embeddings(self):
+        return self.lm_head
+    
+    def set_output_embeddings(self, new_embeddings):
+        self.lm_head = new_embeddings
+    
+    def tie_weights(self):
+        """
+        Tie the weights between the input embeddings and the output embeddings.
+        The embedding layer shares the lm_head's weight tensor.
+        """
+        self.transformer.word_token_embed.weight = self.lm_head.weight
+
+    def _init_weights(self, module):
+        """Initialize the weights"""
+        if isinstance(module, nn.Linear):
+            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            if module.bias is not None:
+                module.bias.data.zero_()
+        elif isinstance(module, nn.Embedding):
+            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+        elif isinstance(module, nn.LayerNorm):
+            if module.bias is not None:
+                module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
         
         # Apply special scaled initialization to the residual projections, per GPT-2 paper
         for name, param in self.named_parameters():
-            if name.endswith('c_proj.weight'):
-                nn.init.normal_(param, mean=0.0, std=0.02 / math.sqrt(2 * config.n_layer))
-
-        # Number of parameters
-        print(f"Number of parameters: {self.get_num_params()/1e6:.2f}M")
-
-    def _init_weights(self, module):
-        if isinstance(module, nn.Linear):
-            nn.init.normal_(module.weight, mean=0.0, std=0.02)
-            if module.bias is not None:
-                nn.init.zeros_(module.bias)
-        elif isinstance(module, nn.Embedding):
-            nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if name.endswith('c_projection.weight') or name.endswith('projection.weight'):
+                param.data.normal_(mean=0.0, std=self.config.initializer_range / math.sqrt(2 * self.config.num_hidden_layers))
 
     def get_num_params(self, non_embedding: bool = False):
         """
@@ -62,7 +85,7 @@ class GPT2(nn.Module):
     def forward(self, idx, targets=None):
         device = idx.device
         _, seq_len = idx.size() # (batch_size, sequence_length)
-        assert seq_len <= self.config.block_size, f"Cannot forward sequence of length {seq_len}, the block size is {self.config.block_size}."
+        assert seq_len <= self.config.max_position_embeddings, f"Cannot forward sequence of length {seq_len}, the block size is {self.config.max_position_embeddings}."
         pos = torch.arange(0, seq_len, dtype=torch.long, device=device)
 
         # Forward the GPT model
@@ -92,7 +115,7 @@ class GPT2(nn.Module):
         """
         for _ in range(max_new_tokens):
             # If the context is longer than the block size, crop it to the last block_size tokens
-            idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
+            idx_cond = idx if idx.size(1) <= self.config.max_position_embeddings else idx[:, -self.config.max_position_embeddings:]
 
             # Forward the model to get the logits for the next token
             logits, _ = self(idx_cond)

@@ -8,12 +8,12 @@ class MLP(nn.Module):
     """
     def __init__(self, config: GPTConfig):
         super().__init__()
-        # Expansion: n_embedding -> 4 * n_embedding
+        # Expansion: hidden_size -> 4 * hidden_size
         # Original "Attention is All You Need" paper used this 4x expansion factor
-        self.linear = nn.Linear(config.n_embedding, 4 * config.n_embedding, bias=config.bias)
+        self.linear = nn.Linear(config.hidden_size, 4 * config.hidden_size, bias=config.bias)
         self.gelu = nn.GELU(approximate='tanh')
-        # Projection: 4 * n_embedding -> n_embedding
-        self.projection = nn.Linear(4 * config.n_embedding, config.n_embedding, bias=config.bias)
+        # Projection: 4 * hidden_size -> hidden_size
+        self.projection = nn.Linear(4 * config.hidden_size, config.hidden_size, bias=config.bias)
         self.dropout = nn.Dropout(config.dropout)
 
     def forward(self, input: torch.Tensor):

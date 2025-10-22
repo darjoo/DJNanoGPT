@@ -17,7 +17,7 @@ class FineTuner:
 
         print(f"Loading model for finetuning from {checkpoint_path}")
         torch.serialization.add_safe_globals([GPTConfig])
-        self.model = torch.load(self.checkpoint, map_location=device)
+        self.checkpoint = torch.load(checkpoint_path, map_location=device)
 
         state_dict = self.checkpoint['model']
 

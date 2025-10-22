@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from ..config import GPTConfig
+from ..config.gpt_config import GPTConfig
 
 class CasualSelfAttention(nn.Module):
     """
@@ -9,21 +9,21 @@ class CasualSelfAttention(nn.Module):
 
     def __init__(self, config: GPTConfig):
         super().__init__()
-        assert config.n_embedding % config.n_head == 0, "Embedding dimension must be divisible by number of heads"
+        assert config.hidden_size % config.num_attention_heads == 0, "Embedding dimension must be divisible by number of heads"
+
+        self.n_embedding = config.hidden_size
+        self.n_head = config.num_attention_heads
+        self.dropout = config.dropout
 
         # Key, Query, Value projections for all heads
-        self.c_attention = nn.Linear(config.n_embedding, 3 * config.n_embedding, bias=config.bias)
+        self.c_attention = nn.Linear(self.n_embedding, 3 * self.n_embedding, bias=config.bias)
 
         # Output projection
-        self.c_projection = nn.Linear(config.n_embedding, config.n_embedding, bias=config.bias)
+        self.c_projection = nn.Linear(self.n_embedding, self.n_embedding, bias=config.bias)
 
         # Regularization
         self.attention_dropout = nn.Dropout(config.dropout)
         self.residual_dropout = nn.Dropout(config.dropout)
-
-        self.n_head = config.n_head
-        self.n_embedding = config.n_embedding
-        self.dropout = config.dropout
         
         # Flash attention
         self.flash_attention = hasattr(nn.functional, 'scaled_dot_product_attention')

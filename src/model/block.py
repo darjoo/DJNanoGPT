@@ -9,9 +9,9 @@ class Block(nn.Module):
     """
     def __init__(self, config: GPTConfig):
         super().__init__()
-        self.ln_1 = nn.LayerNorm(config.n_embedding, bias=config.bias)
+        self.ln_1 = nn.LayerNorm(config.hidden_size, bias=config.bias)
         self.attention = CasualSelfAttention(config)
-        self.ln_2 = nn.LayerNorm(config.n_embedding, bias=config.bias)
+        self.ln_2 = nn.LayerNorm(config.hidden_size, bias=config.bias)
         self.mlp = MLP(config)
 
     def forward(self, input: torch.Tensor):
