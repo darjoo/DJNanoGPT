@@ -6,7 +6,7 @@ from src.config import GPTConfig
 
 def test_causal_self_attention_init():
     """Test that CausalSelfAttention initializes correctly."""
-    config = GPTConfig(n_embedding=768, n_head=12, dropout=0.1, bias=True)
+    config = GPTConfig(hidden_size=768, num_attention_heads=12, dropout=0.1, bias=True)
     attention = CausalSelfAttention(config)
     
     # Check that all components are initialized
@@ -15,7 +15,7 @@ def test_causal_self_attention_init():
     assert hasattr(attention, 'attention_dropout')
     assert hasattr(attention, 'residual_dropout')
     
-    # Check dimensions
+    # Check dimensions - attention stores config values in n_head and n_embedding
     assert attention.n_head == 12
     assert attention.n_embedding == 768
     assert attention.dropout == 0.1
@@ -29,35 +29,35 @@ def test_causal_self_attention_init():
 
 def test_causal_self_attention_invalid_config():
     """Test that CausalSelfAttention raises error for invalid configuration."""
-    # n_embedding not divisible by n_head
-    config = GPTConfig(n_embedding=100, n_head=12)
+    # hidden_size not divisible by num_attention_heads
+    config = GPTConfig(hidden_size=100, num_attention_heads=12)
     
-    with pytest.raises(AssertionError):
+    with pytest.raises(AssertionError, match="Embedding dimension must be divisible by number of heads"):
         CausalSelfAttention(config)
 
 
 def test_causal_self_attention_forward_shape():
     """Test that forward pass returns correct output shape."""
-    config = GPTConfig(n_embedding=768, n_head=12, dropout=0.0)
+    config = GPTConfig(hidden_size=768, num_attention_heads=12, dropout=0.0)
     attention = CausalSelfAttention(config)
     
     batch_size = 2
     sequence_length = 10
     
     # Create input tensor
-    x = torch.randn(batch_size, sequence_length, config.n_embedding)
+    x = torch.randn(batch_size, sequence_length, config.hidden_size)
     
     # Forward pass
     output = attention(x)
     
     # Check output shape
-    assert output.shape == (batch_size, sequence_length, config.n_embedding)
+    assert output.shape == (batch_size, sequence_length, config.hidden_size)
     assert torch.isfinite(output).all()
 
 
 def test_causal_self_attention_forward_different_sizes():
     """Test forward pass with different batch sizes and sequence lengths."""
-    config = GPTConfig(n_embedding=512, n_head=8, dropout=0.0)
+    config = GPTConfig(hidden_size=512, num_attention_heads=8, dropout=0.0)
     attention = CausalSelfAttention(config)
     
     test_cases = [
@@ -67,22 +67,22 @@ def test_causal_self_attention_forward_different_sizes():
     ]
     
     for batch_size, sequence_length in test_cases:
-        x = torch.randn(batch_size, sequence_length, config.n_embedding)
+        x = torch.randn(batch_size, sequence_length, config.hidden_size)
         output = attention(x)
         
-        assert output.shape == (batch_size, sequence_length, config.n_embedding)
+        assert output.shape == (batch_size, sequence_length, config.hidden_size)
         assert torch.isfinite(output).all()
 
 
 def test_causal_self_attention_gradient_flow():
     """Test that gradients flow through the attention mechanism."""
-    config = GPTConfig(n_embedding=256, n_head=4, dropout=0.0)
+    config = GPTConfig(hidden_size=256, num_attention_heads=4, dropout=0.0)
     attention = CausalSelfAttention(config)
     
     batch_size = 2
     sequence_length = 8
     
-    x = torch.randn(batch_size, sequence_length, config.n_embedding, requires_grad=True)
+    x = torch.randn(batch_size, sequence_length, config.hidden_size, requires_grad=True)
     output = attention(x)
     
     # Create a dummy loss
@@ -97,12 +97,12 @@ def test_causal_self_attention_gradient_flow():
 
 def test_causal_self_attention_training_vs_eval():
     """Test that attention behaves differently in training vs eval mode."""
-    config = GPTConfig(n_embedding=256, n_head=4, dropout=0.5)
+    config = GPTConfig(hidden_size=256, num_attention_heads=4, dropout=0.1)
     attention = CausalSelfAttention(config)
     
     batch_size = 2
     sequence_length = 8
-    x = torch.randn(batch_size, sequence_length, config.n_embedding)
+    x = torch.randn(batch_size, sequence_length, config.hidden_size)
     
     # Set to training mode
     attention.train()
@@ -122,7 +122,7 @@ def test_causal_self_attention_training_vs_eval():
 
 def test_causal_self_attention_no_bias():
     """Test attention mechanism without bias."""
-    config = GPTConfig(n_embedding=256, n_head=4, dropout=0.0, bias=False)
+    config = GPTConfig(hidden_size=256, num_attention_heads=4, dropout=0.0, bias=False)
     attention = CausalSelfAttention(config)
     
     # Check that bias is None
@@ -131,20 +131,20 @@ def test_causal_self_attention_no_bias():
     
     batch_size = 2
     sequence_length = 8
-    x = torch.randn(batch_size, sequence_length, config.n_embedding)
+    x = torch.randn(batch_size, sequence_length, config.hidden_size)
     
     output = attention(x)
-    assert output.shape == (batch_size, sequence_length, config.n_embedding)
+    assert output.shape == (batch_size, sequence_length, config.hidden_size)
     assert torch.isfinite(output).all()
 
 
 def test_causal_self_attention_deterministic():
     """Test that attention is deterministic when using the same input and seed."""
-    config = GPTConfig(n_embedding=256, n_head=4, dropout=0.0)
+    config = GPTConfig(hidden_size=256, num_attention_heads=4, dropout=0.0)
     
     batch_size = 2
     sequence_length = 8
-    x = torch.randn(batch_size, sequence_length, config.n_embedding)
+    x = torch.randn(batch_size, sequence_length, config.hidden_size)
     
     # Create two identical attention modules
     torch.manual_seed(42)
@@ -171,7 +171,7 @@ def test_causal_self_attention_different_head_counts():
     sequence_length = 8
     
     for n_head in head_counts:
-        config = GPTConfig(n_embedding=embedding_dim, n_head=n_head, dropout=0.0)
+        config = GPTConfig(hidden_size=embedding_dim, num_attention_heads=n_head, dropout=0.0)
         attention = CausalSelfAttention(config)
         
         x = torch.randn(batch_size, sequence_length, embedding_dim)

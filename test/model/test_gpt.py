@@ -14,28 +14,26 @@ class TestGPT:
     def config(self):
         """Create a minimal GPT config for testing."""
         return GPTConfig(
-            block_size=128,
+            max_position_embeddings=128,
             vocab_size=1000,
-            n_layer=2,
-            n_head=4,
-            n_embedding=64,
+            num_hidden_layers=2,
+            num_attention_heads=4,
+            hidden_size=64,
             dropout=0.1,
-            bias=True,
-            device='cpu'
+            bias=True
         )
     
     @pytest.fixture
     def small_config(self):
         """Create an even smaller config for faster tests."""
         return GPTConfig(
-            block_size=32,
+            max_position_embeddings=32,
             vocab_size=100,
-            n_layer=1,
-            n_head=2,
-            n_embedding=16,
+            num_hidden_layers=1,
+            num_attention_heads=2,
+            hidden_size=16,
             dropout=0.0,
-            bias=False,
-            device='cpu'
+            bias=False
         )
     
     def test_gpt_init_with_valid_config(self, config):
@@ -57,27 +55,29 @@ class TestGPT:
         
         # Check embedding dimensions
         assert model.transformer.word_token_embed.num_embeddings == config.vocab_size
-        assert model.transformer.word_token_embed.embedding_dim == config.n_embedding
-        assert model.transformer.word_position_embed.num_embeddings == config.block_size
-        assert model.transformer.word_position_embed.embedding_dim == config.n_embedding
+        assert model.transformer.word_token_embed.embedding_dim == config.hidden_size
+        assert model.transformer.word_position_embed.num_embeddings == config.max_position_embeddings
+        assert model.transformer.word_position_embed.embedding_dim == config.hidden_size
         
         # Check number of transformer blocks
-        assert len(model.transformer.hidden) == config.n_layer
+        assert len(model.transformer.hidden) == config.num_hidden_layers
         
         # Check weight tying
         assert model.transformer.word_token_embed.weight is model.lm_head.weight
     
     def test_gpt_init_without_vocab_size(self):
-        """Test that GPT initialization fails without vocab_size."""
-        config = GPTConfig(vocab_size=None, block_size=128)
-        with pytest.raises(AssertionError, match="vocab_size must be specified"):
-            GPT(config)
+        """Test that GPT initialization uses default vocab_size when not specified."""
+        config = GPTConfig()  # Uses default vocab_size
+        with patch('builtins.print'):
+            model = GPT(config)
+        assert model.config.vocab_size == 50257  # Default GPT-2 vocab size
     
     def test_gpt_init_without_block_size(self):
-        """Test that GPT initialization fails without block_size."""
-        config = GPTConfig(vocab_size=1000, block_size=None)
-        with pytest.raises(AssertionError, match="block_size must be specified"):
-            GPT(config)
+        """Test that GPT initialization works with default max_position_embeddings."""
+        config = GPTConfig(vocab_size=1000)
+        with patch('builtins.print'):
+            model = GPT(config)
+        assert model.config.max_position_embeddings == 256  # Default value
     
     def test_get_num_params(self, small_config):
         """Test parameter counting functionality."""
@@ -133,12 +133,12 @@ class TestGPT:
         assert torch.isfinite(logits).all()
     
     def test_forward_sequence_too_long(self, small_config):
-        """Test that forward pass fails with sequence longer than block_size."""
+        """Test that forward pass fails with sequence longer than max_position_embeddings."""
         with patch('builtins.print'):
             model = GPT(small_config)
         
         batch_size = 2
-        seq_len = small_config.block_size + 1  # Longer than block_size
+        seq_len = small_config.max_position_embeddings + 1  # Longer than max_position_embeddings
         idx = torch.randint(0, small_config.vocab_size, (batch_size, seq_len))
         
         with pytest.raises(AssertionError, match="Cannot forward sequence of length"):
@@ -199,18 +199,18 @@ class TestGPT:
             assert torch.all(generated < small_config.vocab_size)
     
     def test_generate_long_context(self, small_config):
-        """Test generation when context exceeds block size."""
+        """Test generation when context exceeds max_position_embeddings."""
         with patch('builtins.print'):
             model = GPT(small_config)
         model.eval()
         
-        # Create context longer than block_size
-        long_context_len = small_config.block_size + 10
+        # Create context longer than max_position_embeddings
+        long_context_len = small_config.max_position_embeddings + 10
         idx = torch.randint(0, small_config.vocab_size, (1, long_context_len))
         
         generated = model.generate(idx, max_new_tokens=5)
         
-        # Should crop to block_size and then generate
+        # Should crop to max_position_embeddings and then generate
         assert generated.shape == (1, long_context_len + 5)
         assert torch.all(generated >= 0)
         assert torch.all(generated < small_config.vocab_size)
@@ -267,14 +267,13 @@ class TestGPTIntegration:
     def test_training_step_integration(self):
         """Test a complete training step."""
         config = GPTConfig(
-            block_size=64,
+            max_position_embeddings=64,
             vocab_size=100,
-            n_layer=1,
-            n_head=2,
-            n_embedding=32,
+            num_hidden_layers=1,
+            num_attention_heads=2,
+            hidden_size=32,
             dropout=0.0,
-            bias=False,
-            device='cpu'
+            bias=False
         )
         
         with patch('builtins.print'):
@@ -300,14 +299,13 @@ class TestGPTIntegration:
     def test_inference_generation_integration(self):
         """Test a complete inference generation."""
         config = GPTConfig(
-            block_size=64,
+            max_position_embeddings=64,
             vocab_size=100,
-            n_layer=1,
-            n_head=2,
-            n_embedding=32,
+            num_hidden_layers=1,
+            num_attention_heads=2,
+            hidden_size=32,
             dropout=0.0,
-            bias=False,
-            device='cpu'
+            bias=False
         )
         
         with patch('builtins.print'):

@@ -10,10 +10,10 @@ def test_mlp_init():
     mlp = MLP(config)
     
     # Check layer dimensions
-    assert mlp.linear.in_features == config.n_embedding
-    assert mlp.linear.out_features == 4 * config.n_embedding
-    assert mlp.projection.in_features == 4 * config.n_embedding
-    assert mlp.projection.out_features == config.n_embedding
+    assert mlp.linear.in_features == config.hidden_size
+    assert mlp.linear.out_features == 4 * config.hidden_size
+    assert mlp.projection.in_features == 4 * config.hidden_size
+    assert mlp.projection.out_features == config.hidden_size
     
     # Check bias configuration
     assert mlp.linear.bias is not None if config.bias else mlp.linear.bias is None
@@ -31,7 +31,7 @@ def test_mlp_init_no_bias():
 
 def test_mlp_forward_shape():
     """Test that MLP forward pass preserves input shape."""
-    config = GPTConfig(n_embedding=768, dropout=0.0)
+    config = GPTConfig(hidden_size=768, dropout=0.0)
     mlp = MLP(config)
     
     # Test different batch sizes and sequence lengths
@@ -50,7 +50,7 @@ def test_mlp_forward_shape():
 
 def test_mlp_forward_values():
     """Test that MLP forward pass produces reasonable outputs."""
-    config = GPTConfig(n_embedding=64, dropout=0.0)  # Smaller for testing
+    config = GPTConfig(hidden_size=64, dropout=0.0)  # Smaller for testing
     mlp = MLP(config)
     mlp.eval()  # Disable dropout for deterministic testing
     
@@ -71,7 +71,7 @@ def test_mlp_forward_values():
 
 def test_mlp_deterministic():
     """Test that MLP produces deterministic outputs when dropout is disabled."""
-    config = GPTConfig(n_embedding=64, dropout=0.0)
+    config = GPTConfig(hidden_size=64, dropout=0.0)
     mlp = MLP(config)
     mlp.eval()
     
@@ -86,7 +86,7 @@ def test_mlp_deterministic():
 
 def test_mlp_dropout_effect():
     """Test that dropout affects training mode but not eval mode."""
-    config = GPTConfig(n_embedding=64, dropout=0.5)
+    config = GPTConfig(hidden_size=64, dropout=0.5)
     mlp = MLP(config)
     
     x = torch.randn(2, 64)
@@ -108,7 +108,7 @@ def test_mlp_dropout_effect():
 
 def test_mlp_gradient_flow():
     """Test that gradients flow properly through MLP."""
-    config = GPTConfig(n_embedding=64, dropout=0.0)
+    config = GPTConfig(hidden_size=64, dropout=0.0)
     mlp = MLP(config)
     
     x = torch.randn(2, 64, requires_grad=True)
@@ -128,7 +128,7 @@ def test_mlp_gradient_flow():
 @pytest.mark.parametrize("n_embedding", [64, 128, 256, 768])
 def test_mlp_different_embedding_sizes(n_embedding):
     """Test MLP with different embedding dimensions."""
-    config = GPTConfig(n_embedding=n_embedding, dropout=0.0)
+    config = GPTConfig(hidden_size=n_embedding, dropout=0.0)
     mlp = MLP(config)
     
     x = torch.randn(4, n_embedding)
@@ -158,18 +158,18 @@ def test_mlp_gelu_activation():
 
 def test_mlp_expansion_factor():
     """Test that MLP uses 4x expansion factor as mentioned in comments."""
-    config = GPTConfig(n_embedding=128)
+    config = GPTConfig(hidden_size=128)
     mlp = MLP(config)
     
     # Check that hidden dimension is 4x the embedding dimension
     hidden_dim = mlp.linear.out_features
-    assert hidden_dim == 4 * config.n_embedding, "MLP should use 4x expansion factor"
+    assert hidden_dim == 4 * config.hidden_size, "MLP should use 4x expansion factor"
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
 def test_mlp_cuda():
     """Test MLP on CUDA device."""
-    config = GPTConfig(n_embedding=64, dropout=0.0)
+    config = GPTConfig(hidden_size=64, dropout=0.0)
     mlp = MLP(config).cuda()
     
     x = torch.randn(2, 64).cuda()
