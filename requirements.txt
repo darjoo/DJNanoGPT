@@ -6,6 +6,7 @@ tiktoken
 hf_xet
 numpy
 triton-windows
-mlflow
+wandb
 peft
 psutil
+python-dotenv

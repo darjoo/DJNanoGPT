@@ -8,3 +8,5 @@ mlruns/
 *.bin
 checkpoints/
 finetune_checkpoints/
+.env
+wandb/
