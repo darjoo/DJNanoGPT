@@ -31,10 +31,10 @@ class TrainingConfig:
     max_iters: int = 30000
     warmup_steps: int = 1000
     min_lr: float = 6e-5 
-    eval_iters: int = 200
+    eval_iters: int = 10
     batch_size: int = 32 # Number of sequences processed in one forward/backward pass
     block_size: int = 256 # Context/Sequence length
-    gradient_accumulation_steps: int = 32
+    gradient_accumulation_steps: int = 1 # Number of steps to accumulate gradients before updating model
     weight_decay: float = 0.1
     beta1: float = 0.9
     beta2: float = 0.95

@@ -1,92 +1,123 @@
-import mlflow
+import wandb
 import os
+import tempfile
 from typing import Dict, Any, Optional
+from dotenv import load_dotenv
 
-from src.config import LoggingConfig, TrainingConfig
+from src.config import LoggingConfig
+
+# Load environment variables from .env file
+load_dotenv()
 
 class Logger:
     def __init__(self, logging_config: LoggingConfig):
         self.log_interval = logging_config.log_interval
         self.log_dir = logging_config.log_dir
 
-        self.mlflow = logging_config.mlflow
+        self.wandb = logging_config.wandb
+        self.wandb_config = logging_config
         
-        if self.mlflow:
-            # Set tracking URI
-            mlflow.set_tracking_uri(logging_config.mlflow_tracking_uri)
+        if self.wandb:
+            # Set base URL for local wandb server if specified
+            if hasattr(logging_config, 'wandb_base_url') and logging_config.wandb_base_url:
+                os.environ['WANDB_BASE_URL'] = logging_config.wandb_base_url
+                # For local servers, API key is loaded from .env file
+                if not os.environ.get('WANDB_API_KEY'):
+                    print("Warning: WANDB_API_KEY not found in environment variables. Please set it in .env file.")
+                print(f"Weights & Biases tracking configured with local server: {logging_config.wandb_base_url}")
             
-            # Set experiment
-            mlflow.set_experiment(logging_config.mlflow_experiment_name)
-
-            print(f"MLflow tracking started. Experiment: {logging_config.mlflow_experiment_name}")
-            print(f"MLflow UI available at: mlflow ui --backend-store-uri {logging_config.mlflow_tracking_uri}")
+            print(f"Weights & Biases tracking configured. Project: {logging_config.wandb_project}")
+            print(f"Mode: {logging_config.wandb_mode}")
+            if logging_config.wandb_mode == 'offline':
+                print(f"Running in offline mode. Logs will be saved to: {logging_config.wandb_dir}")
+                print(f"To sync later, run: wandb sync {logging_config.wandb_dir}/<run-folder>")
 
     def start_run(self, run_id: str = None, run_name: str = None, tags: Dict[str, str] = None):
-        """Start an MLflow run with optional tags and name."""
-        if self.mlflow:
-            mlflow.start_run(run_id=run_id, run_name=run_name)
+        """Start a wandb run with optional tags and name."""
+        if self.wandb:
+            wandb.init(
+                project=self.wandb_config.wandb_project,
+                entity=self.wandb_config.wandb_entity,
+                name=run_name,
+                id=run_id,
+                dir=self.wandb_config.wandb_dir,
+                mode=self.wandb_config.wandb_mode,
+                tags=list(tags.values()) if tags else None,
+                resume="allow" if run_id else None
+            )
+            # Log tags as config if provided
             if tags:
-                mlflow.set_tags(tags)
+                wandb.config.update({f"tag_{k}": v for k, v in tags.items()})
 
     def end_run(self, status: str = "FINISHED"):
-        """End the current MLflow run."""
-        if self.mlflow and mlflow.active_run():
-            mlflow.end_run(status=status)
+        """End the current wandb run."""
+        if self.wandb and wandb.run is not None:
+            # Map status to wandb exit codes
+            exit_code = 0 if status == "FINISHED" else 1
+            wandb.finish(exit_code=exit_code)
 
     def log_params(self, params: dict):
-        """Log parameters to MLflow."""
-        if self.mlflow:
-            # MLflow has a limit of 500 characters per param value
-            # and 100 params per batch, so we'll log them carefully
+        """Log parameters to wandb."""
+        if self.wandb and wandb.run is not None:
             try:
-                mlflow.log_params(params)
+                wandb.config.update(params, allow_val_change=True)
             except Exception as e:
                 print(f"Warning: Could not log all parameters: {e}")
-                # Try logging one by one if batch fails
-                for key, value in params.items():
-                    try:
-                        mlflow.log_param(key, value)
-                    except Exception as e:
-                        print(f"Warning: Could not log parameter {key}: {e}")
 
     def log_metrics(self, metrics: dict, step: int):
-        """Log metrics to MLflow."""
-        if self.mlflow:
-            mlflow.log_metrics(metrics, step=step)
+        """Log metrics to wandb."""
+        if self.wandb and wandb.run is not None:
+            wandb.log(metrics, step=step)
 
     def log_artifact(self, local_path: str, artifact_path: str = None):
         """Log a local file or directory as an artifact."""
-        if self.mlflow:
+        if self.wandb and wandb.run is not None:
             if os.path.exists(local_path):
-                mlflow.log_artifact(local_path, artifact_path)
+                wandb.save(local_path, base_path=os.path.dirname(local_path) if artifact_path else None)
             else:
                 print(f"Warning: Artifact path does not exist: {local_path}")
 
     def log_model(self, model, artifact_path: str, **kwargs):
-        """Log a PyTorch model to MLflow."""
-        if self.mlflow:
+        """Log a PyTorch model to wandb."""
+        if self.wandb and wandb.run is not None:
             try:
-                mlflow.pytorch.log_model(model, artifact_path, **kwargs)
+                # Save model to temporary file and log it
+                import torch
+                temp_dir = tempfile.mkdtemp()
+                model_path = os.path.join(temp_dir, f"{artifact_path}.pt")
+                torch.save(model.state_dict(), model_path)
+                wandb.save(model_path)
+                # Log as wandb artifact for versioning
+                artifact = wandb.Artifact(artifact_path, type='model')
+                artifact.add_file(model_path)
+                wandb.log_artifact(artifact)
             except Exception as e:
                 print(f"Warning: Could not log model: {e}")
 
     def log_dict(self, dictionary: dict, file_name: str):
         """Log a dictionary as a JSON artifact."""
-        if self.mlflow:
-            mlflow.log_dict(dictionary, file_name)
+        if self.wandb and wandb.run is not None:
+            import json
+            temp_file = os.path.join(tempfile.gettempdir(), file_name)
+            with open(temp_file, 'w') as f:
+                json.dump(dictionary, f, indent=2)
+            wandb.save(temp_file)
 
     def set_tags(self, tags: Dict[str, Any]):
         """Set tags for the current run."""
-        if self.mlflow:
-            mlflow.set_tags(tags)
+        if self.wandb and wandb.run is not None:
+            wandb.run.tags = wandb.run.tags + tuple(str(v) for v in tags.values())
 
     def log_text(self, text: str, artifact_file: str):
         """Log text content as an artifact."""
-        if self.mlflow:
-            mlflow.log_text(text, artifact_file)
+        if self.wandb and wandb.run is not None:
+            temp_file = os.path.join(tempfile.gettempdir(), artifact_file)
+            with open(temp_file, 'w') as f:
+                f.write(text)
+            wandb.save(temp_file)
 
     def get_run_id(self) -> Optional[str]:
         """Get the current run ID."""
-        if self.mlflow and mlflow.active_run():
-            return mlflow.active_run().info.run_id
+        if self.wandb and wandb.run is not None:
+            return wandb.run.id
         return None

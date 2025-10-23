@@ -1,11 +1,10 @@
 import math
-import mlflow
-import mlflow.pytorch
 import os 
 import time
 import torch
 import psutil
 import platform
+import wandb
 from datetime import datetime
 from typing import Dict, Any
 
@@ -34,6 +33,7 @@ class Trainer:
         self.train_losses = []
         self.val_losses = []
         self.log_run_id = None
+        self.wandb_run_id = None
 
         # Initialize the model
         self.model_args = dict(
@@ -107,7 +107,8 @@ class Trainer:
         self.model.load_state_dict(state_dict)
         self.iter_num = checkpoint['iter_num']
         self.best_val_loss = checkpoint['best_val_loss']
-        self.log_run_id = checkpoint['mlflow_experiment_name']
+        self.log_run_id = checkpoint['wandb_run_id']
+        self.wandb_run_id = self.log_run_id
         print(f"resumed from iteration {self.iter_num}, best val loss {self.best_val_loss:.4f}")
 
     def get_lr(self, iteration):
@@ -134,7 +135,7 @@ class Trainer:
 
     def train_step(self):
         t0 = time.time() # Start timer
-        for micro_step in range(self.training_config.gradient_accumulation_steps):
+        for _ in range(self.training_config.gradient_accumulation_steps):
             X, Y = self.dataloader.get_batch('train')
             with torch.amp.autocast(device_type='cuda', enabled=(self.device == 'cuda')):
                 logits, loss = self.model(X, Y)
@@ -189,27 +190,27 @@ class Trainer:
                     'iter_num': self.iter_num,
                     'best_val_loss': self.best_val_loss,
                     'config': self.model.config,
-                    'mlflow_experiment_name': mlflow.active_run().info.run_id
+                    'wandb_run_id': wandb.run.id if wandb.run else None
                 }
         ckpt_path = os.path.join(self.training_config.checkpoint_dir, name)
         print(f"saving checkpoint to {ckpt_path}. Best val loss so far: {self.best_val_loss:.4f} at iteration {self.iter_num}")
         torch.save(checkpoint, ckpt_path)
         
-        # Log to MLflow
-        print(f"Logging checkpoint and model to MLflow...")
+        # Log to wandb
+        print(f"Logging checkpoint and model to wandb...")
         try:
             # Log the checkpoint file as artifact (for resuming)
             self.logger.log_artifact(ckpt_path, "checkpoints")
             # Log the model (for deployment/versioning)
             self.logger.log_model(self.model, f"model_iter_{self.iter_num}")
-            print(f"Checkpoint and model logged to MLflow")
+            print(f"Checkpoint and model logged to wandb")
             
             # Cleanup local file if requested (for periodic checkpoints)
             if cleanup_after_logging:
                 os.remove(ckpt_path)
-                print(f"Local checkpoint {ckpt_path} deleted (stored in MLflow)")
+                print(f"Local checkpoint {ckpt_path} deleted (stored in wandb)")
         except Exception as e:
-            print(f"Warning: Could not log to MLflow: {e}")
+            print(f"Warning: Could not log to wandb: {e}")
 
     def evaluate(self):
         losses = self.estimate_loss()
@@ -332,14 +333,14 @@ class Trainer:
             self.logger.log_metrics(final_metrics, step=self.iter_num)
             
             # Log final model and checkpoint
-            print("Logging final model and checkpoint to MLflow...")
+            print("Logging final model and checkpoint to wandb...")
             try:
                 self.logger.log_model(self.model, "model_final")
                 best_ckpt = os.path.join(self.training_config.checkpoint_dir, 'ckpt.pt')
                 if os.path.exists(best_ckpt):
                     self.logger.log_artifact(best_ckpt, "checkpoints")
             except Exception as e:
-                print(f"Warning: Could not log final model to MLflow: {e}")
+                print(f"Warning: Could not log final model to wandb: {e}")
             
             print(f"Training completed at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}")
             print(f"Total training time: {total_duration / 3600:.2f} hours")
