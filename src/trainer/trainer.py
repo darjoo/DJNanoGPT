@@ -182,7 +182,7 @@ class Trainer:
         self.model.train()
         return out
     
-    def save_checkpoint(self, name: str = 'ckpt.pt', cleanup_after_logging: bool = False):
+    def save_checkpoint(self, name: str = 'ckpt.pt'):
         checkpoint = {
                     'model': self.model.state_dict(),
                     'optimizer': self.optimizer.state_dict(),
@@ -195,22 +195,6 @@ class Trainer:
         ckpt_path = os.path.join(self.training_config.checkpoint_dir, name)
         print(f"saving checkpoint to {ckpt_path}. Best val loss so far: {self.best_val_loss:.4f} at iteration {self.iter_num}")
         torch.save(checkpoint, ckpt_path)
-        
-        # Log to wandb
-        print(f"Logging checkpoint and model to wandb...")
-        try:
-            # Log the checkpoint file as artifact (for resuming)
-            self.logger.log_artifact(ckpt_path, "checkpoints")
-            # Log the model (for deployment/versioning)
-            self.logger.log_model(self.model, f"model_iter_{self.iter_num}")
-            print(f"Checkpoint and model logged to wandb")
-            
-            # Cleanup local file if requested (for periodic checkpoints)
-            if cleanup_after_logging:
-                os.remove(ckpt_path)
-                print(f"Local checkpoint {ckpt_path} deleted (stored in wandb)")
-        except Exception as e:
-            print(f"Warning: Could not log to wandb: {e}")
 
     def evaluate(self):
         losses = self.estimate_loss()
@@ -311,9 +295,9 @@ class Trainer:
                 if local_iter_num != 0 and self.iter_num % self.training_config.eval_iters == 0:
                     self.evaluate()
                 
-                # Save and log checkpoint at intervals
+                # Save checkpoint at intervals
                 if self.iter_num % self.training_config.checkpoint_interval == 0 and self.iter_num > 0:
-                    self.save_checkpoint(name=f'ckpt_iter_{self.iter_num}.pt', cleanup_after_logging=True)
+                    self.save_checkpoint(name=f'ckpt_iter_{self.iter_num}.pt')
 
                 self.iter_num += 1
                 local_iter_num += 1
@@ -331,16 +315,6 @@ class Trainer:
                 'total_tokens_processed': self.total_tokens_processed,
             }
             self.logger.log_metrics(final_metrics, step=self.iter_num)
-            
-            # Log final model and checkpoint
-            print("Logging final model and checkpoint to wandb...")
-            try:
-                self.logger.log_model(self.model, "model_final")
-                best_ckpt = os.path.join(self.training_config.checkpoint_dir, 'ckpt.pt')
-                if os.path.exists(best_ckpt):
-                    self.logger.log_artifact(best_ckpt, "checkpoints")
-            except Exception as e:
-                print(f"Warning: Could not log final model to wandb: {e}")
             
             print(f"Training completed at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}")
             print(f"Total training time: {total_duration / 3600:.2f} hours")
