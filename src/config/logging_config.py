@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 @dataclass
 class LoggingConfig:
@@ -25,4 +26,4 @@ class LoggingConfig:
     wandb_dir: str = './wandb'
     wandb_entity: str = None
     wandb_mode: str = 'online'  # Use 'online' to sync with local Docker server
-    wandb_base_url: str = 'http://localhost:8080'  # Change to your Docker instance URL
+    wandb_base_url: Optional[str] = None  # Provide a value when using a self-hosted Weights & Biases server
