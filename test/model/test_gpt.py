@@ -35,6 +35,20 @@ class TestGPT:
             dropout=0.0,
             bias=False
         )
+
+    @pytest.fixture
+    def rotary_config(self):
+        """Configuration that enables rotary embeddings."""
+        return GPTConfig(
+            max_position_embeddings=64,
+            vocab_size=128,
+            num_hidden_layers=1,
+            num_attention_heads=4,
+            hidden_size=32,
+            dropout=0.0,
+            bias=False,
+            use_rotary_embeddings=True
+        )
     
     def test_gpt_init_with_valid_config(self, config):
         """Test GPT initialization with valid configuration."""
@@ -96,6 +110,16 @@ class TestGPT:
         # The difference should be the position embedding parameters
         pos_embed_params = model.transformer.word_position_embed.weight.numel()
         assert total_params - non_embedding_params == pos_embed_params
+
+    def test_get_num_params_with_rotary(self, rotary_config):
+        """When rotary embeddings are used, positional embeddings are absent."""
+        with patch('builtins.print'):
+            model = GPT(rotary_config)
+
+        total_params = model.get_num_params()
+        non_embedding_params = model.get_num_params(non_embedding=True)
+
+        assert total_params == non_embedding_params
     
     def test_forward_training_mode(self, small_config):
         """Test forward pass with targets (training mode)."""
@@ -131,6 +155,22 @@ class TestGPT:
         assert logits.shape == (batch_size, 1, small_config.vocab_size)
         assert loss is None
         assert torch.isfinite(logits).all()
+
+    def test_forward_with_rotary_embeddings(self, rotary_config):
+        """Forward pass should still produce valid outputs when using rotary embeddings."""
+        with patch('builtins.print'):
+            model = GPT(rotary_config)
+        model.eval()
+
+        batch_size, seq_len = 2, 16
+        idx = torch.randint(0, rotary_config.vocab_size, (batch_size, seq_len))
+
+        logits, loss = model(idx)
+
+        assert logits.shape == (batch_size, 1, rotary_config.vocab_size)
+        assert loss is None
+        assert torch.isfinite(logits).all()
+        assert not hasattr(model.transformer, 'word_position_embed')
     
     def test_forward_sequence_too_long(self, small_config):
         """Test that forward pass fails with sequence longer than max_position_embeddings."""

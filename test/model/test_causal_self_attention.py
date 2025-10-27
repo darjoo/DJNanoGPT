@@ -192,3 +192,30 @@ def test_causal_self_attention_flash_attention_attribute():
     
     # Should be True since PyTorch has scaled_dot_product_attention
     assert attention.flash_attention is True
+
+
+def test_causal_self_attention_with_rotary_embeddings():
+    """Ensure rotary embeddings integrate without altering output shapes."""
+    config = GPTConfig(hidden_size=256, num_attention_heads=4, dropout=0.0, use_rotary_embeddings=True)
+    attention = CausalSelfAttention(config)
+
+    batch_size = 2
+    sequence_length = 16
+    x = torch.randn(batch_size, sequence_length, config.hidden_size)
+
+    output = attention(x)
+
+    assert output.shape == (batch_size, sequence_length, config.hidden_size)
+    assert torch.isfinite(output).all()
+
+
+def test_causal_self_attention_rejects_invalid_rotary_dim():
+    """Rotary dim must be even and no larger than the head size."""
+    config_even = GPTConfig(hidden_size=128, num_attention_heads=4, use_rotary_embeddings=True, rotary_dim=31)
+    with pytest.raises(AssertionError, match="Rotary embedding dimension must be even"):
+        CausalSelfAttention(config_even)
+
+    config_large = GPTConfig(hidden_size=128, num_attention_heads=4, use_rotary_embeddings=True, rotary_dim=64)
+    with pytest.raises(AssertionError, match="rotary_dim cannot exceed head dimension"):
+        CausalSelfAttention(config_large)
+

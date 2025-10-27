@@ -1,3 +1,5 @@
+from typing import Optional
+
 from transformers import PretrainedConfig
 
 class GPTConfig(PretrainedConfig):
@@ -15,17 +17,24 @@ class GPTConfig(PretrainedConfig):
                  eos_token_id: int = 50256,
                  tie_word_embeddings: bool = True,
                  initializer_range: float = 0.02,
+                 use_rotary_embeddings: bool = False,
+                 rotary_dim: Optional[int] = None,
+                 rope_theta: float = 10000.0,
                  **kwargs):
         self.vocab_size = vocab_size
         self.hidden_size = hidden_size
         self.num_hidden_layers = num_hidden_layers
         self.num_attention_heads = num_attention_heads
         self.max_position_embeddings = max_position_embeddings
+        self.head_dim = self.hidden_size // self.num_attention_heads
         self.dropout = dropout
         self.bias = bias
         self.initializer_range = initializer_range
         self.bos_token_id = bos_token_id
         self.eos_token_id = eos_token_id
+        self.use_rotary_embeddings = use_rotary_embeddings
+        self.rotary_dim = rotary_dim
+        self.rope_theta = rope_theta
         
         super().__init__(
             bos_token_id=bos_token_id, 

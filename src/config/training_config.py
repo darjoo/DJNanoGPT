@@ -43,7 +43,7 @@ class TrainingConfig:
     grad_clip: float = 1.0 # Clip gradients at this value, or disable if == 0.0
     checkpoint_dir: str = 'checkpoints'
     compile: bool = True # Use PyTorch 2.0 to compile the model to be faster
-    checkpoint_interval: int = 20
+    checkpoint_interval: int = 200
 
     def __post_init__(self):
         assert self.min_lr <= self.learning_rate, "min_lr should be less than or equal to learning_rate"

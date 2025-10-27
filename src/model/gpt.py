@@ -19,13 +19,16 @@ class GPT(PreTrainedModel):
         super().__init__(config)
         self.config = config
 
-        self.transformer = nn.ModuleDict(dict(
+        transformer_modules = dict(
             word_token_embed = nn.Embedding(config.vocab_size, config.hidden_size),
-            word_position_embed = nn.Embedding(config.max_position_embeddings, config.hidden_size),
             drop = nn.Dropout(config.dropout),
             hidden = nn.Sequential(*[Block(config) for _ in range(config.num_hidden_layers)]),
             ln_final = nn.LayerNorm(config.hidden_size, bias=config.bias)
-        ))
+        )
+        if not config.use_rotary_embeddings:
+            transformer_modules["word_position_embed"] = nn.Embedding(config.max_position_embeddings, config.hidden_size)
+
+        self.transformer = nn.ModuleDict(transformer_modules)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
 
         # Initialize weights
@@ -79,7 +82,8 @@ class GPT(PreTrainedModel):
         """
         n_params = sum(p.numel() for p in self.parameters())
         if non_embedding:
-            n_params -= (self.transformer.word_position_embed.weight.numel())
+            if "word_position_embed" in self.transformer:
+                n_params -= self.transformer.word_position_embed.weight.numel()
         return n_params
     
     def forward(self, idx, targets=None):
@@ -90,9 +94,10 @@ class GPT(PreTrainedModel):
 
         # Forward the GPT model
         token_embeddings = self.transformer.word_token_embed(idx)  # Shape (batch_size, seq_len, n_embedding)
-        position_embeddings = self.transformer.word_position_embed(pos)  # Shape (seq_len, n_embedding)
-        combined_embeddings = token_embeddings + position_embeddings  # Shape (batch_size, seq_len, n_embedding)
-        x = self.transformer.drop(combined_embeddings) # Apply dropout after adding token and position embeddings
+        if "word_position_embed" in self.transformer:
+            position_embeddings = self.transformer.word_position_embed(pos)  # Shape (seq_len, n_embedding)
+            token_embeddings = token_embeddings + position_embeddings
+        x = self.transformer.drop(token_embeddings) # Apply dropout after embedding stage
         x = self.transformer.hidden(x)
         x = self.transformer.ln_final(x) # Final layer norm
 

@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
+
 from ..config import GPTConfig
+from .rotary_embedding import RotaryEmbedding, apply_rotary_pos_emb
 
 class CausalSelfAttention(nn.Module):
     """
@@ -28,7 +30,21 @@ class CausalSelfAttention(nn.Module):
         # Flash attention
         self.flash_attention = hasattr(nn.functional, 'scaled_dot_product_attention')
 
-    def forward(self, x: torch.Tensor, layer_past: tuple = None):
+        self.use_rotary = config.use_rotary_embeddings
+        if self.use_rotary:
+            self.rotary_dim = config.rotary_dim if config.rotary_dim is not None else config.head_dim
+            assert self.rotary_dim % 2 == 0, "Rotary embedding dimension must be even"
+            assert self.rotary_dim <= self.head_dim, "rotary_dim cannot exceed head dimension"
+            self.rotary_emb = RotaryEmbedding(
+                dim=self.rotary_dim,
+                max_position_embeddings=config.max_position_embeddings,
+                base=config.rope_theta,
+            )
+        else:
+            self.rotary_dim = 0
+            self.rotary_emb = None
+
+    def forward(self, x: torch.Tensor):
         batch_size, sequence_length, embedding_dim = x.size()
 
         # Calculate query, key and values for all heads and move head forward to be the batch dimension
@@ -36,6 +52,14 @@ class CausalSelfAttention(nn.Module):
         key = key.view(batch_size, sequence_length, self.n_head, embedding_dim // self.n_head).transpose(1, 2) # (batch_size, n_head, sequence_length, head_dim)
         query = query.view(batch_size, sequence_length, self.n_head, embedding_dim // self.n_head).transpose(1, 2) # (batch_size, n_head, sequence_length, head_dim)
         value = value.view(batch_size, sequence_length, self.n_head, embedding_dim // self.n_head).transpose(1, 2) # (batch_size, n_head, sequence_length, head_dim)
+
+        if self.use_rotary:
+            cos, sin = self.rotary_emb(
+                sequence_length,
+                device=query.device,
+                dtype=query.dtype,
+            )
+            query, key = apply_rotary_pos_emb(query, key, cos, sin, self.rotary_dim)
 
         # Casual self attention: (B, nH, T, Hsz) x (B, nH, Hsz, T) -> (B, nH, T, T)
         # is_causal=True applies the causal mask automatically (The triangular mask)
