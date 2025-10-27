@@ -12,12 +12,11 @@ def test_causal_self_attention_init():
     # Check that all components are initialized
     assert hasattr(attention, 'c_attention')
     assert hasattr(attention, 'c_projection')
-    assert hasattr(attention, 'attention_dropout')
     assert hasattr(attention, 'residual_dropout')
     
     # Check dimensions - attention stores config values in n_head and n_embedding
     assert attention.n_head == 12
-    assert attention.n_embedding == 768
+    assert attention.hidden_size == 768
     assert attention.dropout == 0.1
     
     # Check linear layer dimensions
@@ -179,21 +178,6 @@ def test_causal_self_attention_different_head_counts():
         
         assert output.shape == (batch_size, sequence_length, embedding_dim)
         assert torch.isfinite(output).all()
-
-
-def test_causal_self_attention_flash_attention_attribute():
-    """Test that flash attention attribute is set correctly."""
-    config = GPTConfig(n_embedding=256, n_head=4, dropout=0.0)
-    attention = CausalSelfAttention(config)
-    
-    # Check that flash_attention attribute exists and is boolean
-    assert hasattr(attention, 'flash_attention')
-    assert isinstance(attention.flash_attention, bool)
-    
-    # Should be True since PyTorch has scaled_dot_product_attention
-    assert attention.flash_attention is True
-
-
 def test_causal_self_attention_with_rotary_embeddings():
     """Ensure rotary embeddings integrate without altering output shapes."""
     config = GPTConfig(hidden_size=256, num_attention_heads=4, dropout=0.0, use_rotary_embeddings=True)
