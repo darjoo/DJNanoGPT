@@ -47,12 +47,18 @@ class DataLoader:
             data = np.memmap(os.path.join(self.data_dir, 'tinystories_finetune.bin'), dtype=np.uint16, mode='r')
         else:
             raise ValueError("split must be 'train', 'validation', or 'finetune'")
+        
+        max_idx = len(data) - self.block_size - 1
+        if max_idx < 0:
+            raise ValueError(
+                f"Dataset split '{split}' with length {len(data)} is too short for block_size {self.block_size}."
+            )
+        upper_bound = max_idx + 1
         if self.random:
-            ix = torch.randint(len(data) - self.block_size, (self.batch_size,))
+            ix = torch.randint(0, upper_bound, (self.batch_size,))
         else:
-            ix = torch.arange(self.current_i, self.current_i + self.batch_size) % (len(data) - self.block_size)
-            self.current_i += self.batch_size
-            self.current_i %= len(data)
+            ix = torch.arange(self.current_i, self.current_i + self.batch_size) % upper_bound
+            self.current_i = (self.current_i + self.batch_size) % upper_bound
         x = torch.stack([torch.from_numpy((data[i:i+self.block_size]).astype(np.int64)) for i in ix])
         y = torch.stack([torch.from_numpy((data[i+1:i+self.block_size+1]).astype(np.int64)) for i in ix])
         if self.device == 'cuda':
