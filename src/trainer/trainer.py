@@ -11,6 +11,7 @@ from typing import Dict, Any
 from src.config import GPTConfig
 from src.model import GPT
 from src.config import TrainingConfig, LoggingConfig
+from src.utils import load_checkpoint, save_checkpoint, get_system_info, get_memory_usage
 from .dataloader import DataLoader
 from .logger import Logger
 
@@ -64,7 +65,7 @@ class Trainer:
         self.logger = Logger(logging_config)
         
         # System info
-        self.system_info = self._get_system_info()
+        self.system_info = get_system_info(self.device)
 
     def init_optimizer(self):
         self.optimizer = torch.optim.AdamW(self.model.parameters(),
@@ -76,31 +77,16 @@ class Trainer:
     def resume(self):
         print(f"Resuming training from checkpoint: {self.resume_checkpoint}")
 
-        # Validate checkpoint file exists
+        # Validate checkpoint file exists and load it
         checkpoint_path = os.path.join(self.training_config.checkpoint_dir, self.resume_checkpoint)
-        if not os.path.exists(checkpoint_path):
-            raise FileNotFoundError(f"Checkpoint file not found: {checkpoint_path}")
-
-        torch.serialization.add_safe_globals([GPTConfig])
-
-        try:
-            checkpoint = torch.load(checkpoint_path, map_location=self.device)
-        except Exception as e:
-            raise RuntimeError(f"Failed to load checkpoint from {checkpoint_path}: {e}")
-        checkpoint_model_args = checkpoint['model_args']
-
-        # Force config parameters to be the same as in the checkpoint
-        for k in ['n_layer', 'n_head', 'n_embedding', 'block_size', 'bias', 'vocab_size']:
-            assert self.model_args[k] == checkpoint_model_args[k], f"for {k}, config file has {self.model_args[k]} but ckpt has {checkpoint_model_args[k]}"
         
-        state_dict = checkpoint['model']
-
-        # Fix keys of state dictionary
-        unwanted_prefix = '_orig_mod.'
-        for k in list(state_dict.keys()):
-            if k.startswith(unwanted_prefix):
-                state_dict[k[len(unwanted_prefix):]] = state_dict.pop(k)
-            
+        # Load checkpoint with validation
+        checkpoint, state_dict = load_checkpoint(
+            checkpoint_path, 
+            self.device
+        )
+        
+        # Load model state
         self.model.load_state_dict(state_dict)
         self.iter_num = checkpoint['iter_num']
         self.best_val_loss = checkpoint['best_val_loss']
@@ -192,23 +178,20 @@ class Trainer:
         Args:
             name (str): Name of the checkpoint file
         """
-        checkpoint = {
-            'model': self.model.state_dict(),
-            'optimizer': self.optimizer.state_dict(),
-            'scaler': self.scaler.state_dict(),
-            'model_args': self.model_args,
-            'iter_num': self.iter_num,
-            'best_val_loss': self.best_val_loss,
-            'config': self.model.config,
-            'wandb_run_id': self.logger.get_run_id()
-        }
         ckpt_path = os.path.join(self.training_config.checkpoint_dir, name)
         print(f"saving checkpoint to {ckpt_path}. Best val loss so far: {self.best_val_loss:.4f} at iteration {self.iter_num}")
         
-        try:
-            torch.save(checkpoint, ckpt_path)
-        except Exception as e:
-            print(f"Warning: Failed to save checkpoint to {ckpt_path}: {e}")
+        save_checkpoint(
+            checkpoint_path=ckpt_path,
+            model=self.model,
+            optimizer=self.optimizer,
+            scaler=self.scaler,
+            model_args=self.model_args,
+            iter_num=self.iter_num,
+            best_val_loss=self.best_val_loss,
+            config=self.model.config,
+            run_id=self.logger.get_run_id()
+        )
 
     def evaluate(self):
         losses = self.estimate_loss()
@@ -228,7 +211,7 @@ class Trainer:
         }
         
         # Add memory usage
-        metrics.update(self._get_memory_usage())
+        metrics.update(get_memory_usage(self.device))
 
         self.logger.log_metrics(metrics, step=self.iter_num)
 
@@ -342,42 +325,6 @@ class Trainer:
             print(f"\nTraining failed with error: {e}")
             self.logger.end_run(status="FAILED")
             raise
-
-    def _get_system_info(self) -> Dict[str, Any]:
-        """Collect system information for logging."""
-        info = {
-            'platform': platform.platform(),
-            'python_version': platform.python_version(),
-            'pytorch_version': torch.__version__,
-            'device': self.device,
-            'cpu_count': psutil.cpu_count(),
-            'total_ram_gb': round(psutil.virtual_memory().total / (1024**3), 2)
-        }
-        
-        if self.device == 'cuda':
-            info['cuda_version'] = torch.version.cuda
-            info['gpu_name'] = torch.cuda.get_device_name(0)
-            info['gpu_memory_gb'] = round(torch.cuda.get_device_properties(0).total_memory / (1024**3), 2)
-        
-        return info
-    
-    def _get_memory_usage(self) -> Dict[str, float]:
-        """Get current memory usage statistics."""
-        memory_stats = {}
-        
-        # CPU memory
-        memory_stats['cpu_memory_used_gb'] = round(psutil.virtual_memory().used / (1024**3), 2)
-        memory_stats['cpu_memory_percent'] = psutil.virtual_memory().percent
-        
-        # GPU memory
-        if self.device == 'cuda':
-            memory_stats['gpu_memory_allocated_gb'] = round(torch.cuda.memory_allocated() / (1024**3), 2)
-            memory_stats['gpu_memory_reserved_gb'] = round(torch.cuda.memory_reserved() / (1024**3), 2)
-            memory_stats['gpu_memory_percent'] = round(
-                (torch.cuda.memory_allocated() / torch.cuda.get_device_properties(0).total_memory) * 100, 2
-            )
-        
-        return memory_stats
     
     def _log_configurations(self):
         """Log all configurations and hyperparameters to MLflow."""

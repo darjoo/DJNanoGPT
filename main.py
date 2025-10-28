@@ -6,6 +6,7 @@ from peft import LoraConfig, get_peft_model
 from src.config import GPTConfig, TrainingConfig, FinetuneConfig
 from src.model import GPT
 from src.trainer import Trainer, FineTuner
+from src.utils import load_checkpoint
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='DJGPT - A GPT implementation')
@@ -66,28 +67,19 @@ def main():
     elif args.infer:
         # Inference logic here
         print(f"Loading model for inference")
-        torch.serialization.add_safe_globals([GPTConfig])
-        checkpoint = torch.load(args.model, map_location=device)
-        state_dict = checkpoint['model']
-
-        # Fix keys of state dictionary
-        unwanted_prefix = '_orig_mod.'
-        for k in list(state_dict.keys()):
-            if k.startswith(unwanted_prefix):
-                state_dict[k[len(unwanted_prefix):]] = state_dict.pop(k)
-
+        checkpoint, state_dict = load_checkpoint(args.model, device)
         model.load_state_dict(state_dict)
 
-        lora_config = LoraConfig(
-            r=8,
-            lora_alpha=16,
-            lora_dropout=0.1,
-            bias="none",
-            target_modules=["c_attention", "c_projection"]
-        )
-
-        model = get_peft_model(model, lora_config)
+        # Only wrap with PEFT if using LoRA checkpoint
         if args.lora_ckpt:
+            lora_config = LoraConfig(
+                r=8,
+                lora_alpha=16,
+                lora_dropout=0.1,
+                bias="none",
+                target_modules=["c_attention", "c_projection"]
+            )
+            model = get_peft_model(model, lora_config)
             model.load_adapter(args.lora_ckpt, adapter_name="adapter1")
 
         # Inference

@@ -13,6 +13,7 @@ from peft import LoraConfig, get_peft_model, TaskType
 from src.config import FinetuneConfig, GPTConfig, LoggingConfig
 from src.trainer import DataLoader, Logger
 from src.model import GPT
+from src.utils import load_checkpoint, get_system_info, get_memory_usage
 
 class FineTuner:
     def __init__(self, checkpoint_path, finetune_config: FinetuneConfig, gpt_config: GPTConfig, device: str):
@@ -21,20 +22,13 @@ class FineTuner:
         self.device = device
 
         print(f"Loading model for finetuning from {checkpoint_path}")
-        torch.serialization.add_safe_globals([GPTConfig])
-        self.checkpoint = torch.load(checkpoint_path, map_location=device)
+        
+        # Load checkpoint using utility function
+        checkpoint, state_dict = load_checkpoint(checkpoint_path, device)
+        self.checkpoint = checkpoint
 
         # Initialize the model first
         self.model = GPT(gpt_config).to(device)
-
-        state_dict = self.checkpoint['model']
-
-        # Fix keys of state dictionary
-        unwanted_prefix = '_orig_mod.'
-        for k in list(state_dict.keys()):
-            if k.startswith(unwanted_prefix):
-                state_dict[k[len(unwanted_prefix):]] = state_dict.pop(k)
-
         self.model.load_state_dict(state_dict)
 
         lora_config = LoraConfig(
@@ -52,11 +46,13 @@ class FineTuner:
         # Initialize gradient scaler for mixed precision training
         self.scaler = torch.amp.GradScaler(enabled=(self.device == 'cuda'))
 
-        # Load data
-        self.dataloader = DataLoader(data_dir='src\\data\\tinystories', 
-                                block_size=self.gpt_config.block_size,
-                                batch_size=self.finetune_config.batch_size,
-                                device=self.device)
+        # Load data - use os.path.join for cross-platform compatibility
+        self.dataloader = DataLoader(
+            data_dir=os.path.join('src', 'data', 'tinystories'), 
+            block_size=self.gpt_config.block_size,
+            batch_size=self.finetune_config.batch_size,
+            device=self.device
+        )
 
         # Create directory for saving finetune checkpoints    
         os.makedirs(self.finetune_config.checkpoint_dir, exist_ok=True)
@@ -69,28 +65,7 @@ class FineTuner:
         self.total_tokens_processed = 0
         
         # System info
-        self.system_info = self._get_system_info()
-
-        # System info
-        self.system_info = self._get_system_info()
-
-    def _get_system_info(self) -> Dict[str, Any]:
-        """Collect system information for logging."""
-        info = {
-            'platform': platform.platform(),
-            'python_version': platform.python_version(),
-            'pytorch_version': torch.__version__,
-            'device': self.device,
-            'cpu_count': psutil.cpu_count(),
-            'total_ram_gb': round(psutil.virtual_memory().total / (1024**3), 2)
-        }
-        
-        if self.device == 'cuda':
-            info['cuda_version'] = torch.version.cuda
-            info['gpu_name'] = torch.cuda.get_device_name(0)
-            info['gpu_memory_gb'] = round(torch.cuda.get_device_properties(0).total_memory / (1024**3), 2)
-        
-        return info
+        self.system_info = get_system_info(self.device)
 
     def _get_lora_stats(self) -> Dict[str, Any]:
         """Get LoRA-specific statistics."""
@@ -104,24 +79,6 @@ class FineTuner:
             'trainable_percentage': round((trainable_params / total_params) * 100, 4),
             'parameter_size_mb': round(trainable_params * 4 / (1024**2), 2),  # Assuming float32
         }
-
-    def _get_memory_usage(self) -> Dict[str, float]:
-        """Get current memory usage statistics."""
-        memory_stats = {}
-        
-        # CPU memory
-        memory_stats['cpu_memory_used_gb'] = round(psutil.virtual_memory().used / (1024**3), 2)
-        memory_stats['cpu_memory_percent'] = psutil.virtual_memory().percent
-        
-        # GPU memory
-        if self.device == 'cuda':
-            memory_stats['gpu_memory_allocated_gb'] = round(torch.cuda.memory_allocated() / (1024**3), 2)
-            memory_stats['gpu_memory_reserved_gb'] = round(torch.cuda.memory_reserved() / (1024**3), 2)
-            memory_stats['gpu_memory_percent'] = round(
-                (torch.cuda.memory_allocated() / torch.cuda.get_device_properties(0).total_memory) * 100, 2
-            )
-        
-        return memory_stats
 
     def save_checkpoint(self, iter_num: int, loss: float, name: str = 'ckpt_finetune.pt', cleanup_after_logging: bool = False):
         # Save LoRA adapter weights
@@ -304,7 +261,7 @@ class FineTuner:
                     epoch_metrics['epoch_avg_grad_norm'] = sum(epoch_grad_norms) / len(epoch_grad_norms)
                 
                 # Add memory usage
-                epoch_metrics.update(self._get_memory_usage())
+                epoch_metrics.update(get_memory_usage(self.device))
                 
                 self.logger.log_metrics(epoch_metrics, step=epoch)
                 
