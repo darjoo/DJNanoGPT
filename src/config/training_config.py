@@ -10,7 +10,8 @@ class TrainingConfig:
         max_iters (int): The maximum number of training iterations.
         warmup_steps (int): The number of steps to linearly increase the learning rate.
         min_lr (float): The minimum learning rate after decay.
-        eval_iters (int): The number of iterations between evaluations.
+        eval_interval (int): The number of iterations between evaluations.
+        eval_steps (int): The number of batches to use for computing evaluation metrics.
         batch_size (int): The number of sequences processed in one forward/backward pass.
         block_size (int): The context/sequence length.
         gradient_accumulation_steps (int): Number of steps to accumulate gradients before updating model
@@ -19,6 +20,7 @@ class TrainingConfig:
         beta2 (float): The beta2 parameter for the Adam optimizer.
         eps (float): The epsilon parameter for the Adam optimizer.
         max_norm (float): Maximum norm for gradient clipping.
+        data_dir (str): Directory containing the training data files.
         
     Note:
         Effective batch size = batch_size x gradient_accumulation_steps
@@ -31,7 +33,8 @@ class TrainingConfig:
     max_iters: int = 10000
     warmup_steps: int = 1000
     min_lr: float = 6e-5 
-    eval_iters: int = 10
+    eval_interval: int = 100  # Number of iterations between evaluations
+    eval_steps: int = 10  # Number of batches to use for evaluation
     batch_size: int = 32 # Number of sequences processed in one forward/backward pass
     block_size: int = 256 # Context/Sequence length
     gradient_accumulation_steps: int = 1 # Number of steps to accumulate gradients before updating model
@@ -42,6 +45,7 @@ class TrainingConfig:
     max_norm: float = 0.5
     grad_clip: float = 1.0 # Clip gradients at this value, or disable if == 0.0
     checkpoint_dir: str = 'checkpoints'
+    data_dir: str = 'src/data/tinystories'  # Directory containing training data
     compile: bool = True # Use PyTorch 2.0 to compile the model to be faster
     checkpoint_interval: int = 200
 

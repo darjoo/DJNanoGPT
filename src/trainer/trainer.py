@@ -22,18 +22,13 @@ class Trainer:
         self.training_config = training_config
         self.device = device
         self.resume_checkpoint = resume_checkpoint
-        self.best_loss = float('inf')
 
         self.init_optimizer()
 
         # Training state
         self.iter_num = 0
         self.best_val_loss = float('inf')
-        self.current_iter = 0
-        self.train_losses = []
-        self.val_losses = []
         self.log_run_id = None
-        self.wandb_run_id = None
 
         # Initialize the model
         self.model_args = dict(
@@ -46,26 +41,20 @@ class Trainer:
             vocab_size = None,
         )
 
-        # Create checkpoint directory
-        os.makedirs(self.training_config.checkpoint_dir, exist_ok=True)
+        # Create checkpoint directory with error handling
+        try:
+            os.makedirs(self.training_config.checkpoint_dir, exist_ok=True)
+        except OSError as e:
+            raise RuntimeError(f"Failed to create checkpoint directory '{self.training_config.checkpoint_dir}': {e}")
 
         # Initialize gradient scaler for mixed precision training
         self.scaler = torch.amp.GradScaler(enabled=(self.device == 'cuda'))
-
-        # Initialize training metrics
-        self.metrics = {
-            'train_loss': [],
-            'val_loss': [],
-            'learning_rates': [],
-            'grad_norm': [],
-            'memory_usage': []
-        }
         
         # Track total tokens processed
         self.total_tokens_processed = 0
 
-        # Load data
-        self.dataloader = DataLoader(data_dir='src\\data\\tinystories', 
+        # Load data with configurable directory
+        self.dataloader = DataLoader(data_dir=self.training_config.data_dir, 
                                 block_size=self.training_config.block_size,
                                 batch_size=self.training_config.batch_size,
                                 device=self.device)
@@ -87,9 +76,17 @@ class Trainer:
     def resume(self):
         print(f"Resuming training from checkpoint: {self.resume_checkpoint}")
 
+        # Validate checkpoint file exists
+        checkpoint_path = os.path.join(self.training_config.checkpoint_dir, self.resume_checkpoint)
+        if not os.path.exists(checkpoint_path):
+            raise FileNotFoundError(f"Checkpoint file not found: {checkpoint_path}")
+
         torch.serialization.add_safe_globals([GPTConfig])
 
-        checkpoint = torch.load(f"{os.path.join(self.training_config.checkpoint_dir, self.resume_checkpoint)}", map_location=self.device)
+        try:
+            checkpoint = torch.load(checkpoint_path, map_location=self.device)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load checkpoint from {checkpoint_path}: {e}")
         checkpoint_model_args = checkpoint['model_args']
 
         # Force config parameters to be the same as in the checkpoint
@@ -107,8 +104,12 @@ class Trainer:
         self.model.load_state_dict(state_dict)
         self.iter_num = checkpoint['iter_num']
         self.best_val_loss = checkpoint['best_val_loss']
-        self.log_run_id = checkpoint['wandb_run_id']
-        self.wandb_run_id = self.log_run_id
+        self.log_run_id = checkpoint.get('wandb_run_id')
+        
+        # Restore scaler state if available
+        if 'scaler' in checkpoint:
+            self.scaler.load_state_dict(checkpoint['scaler'])
+        
         print(f"resumed from iteration {self.iter_num}, best val loss {self.best_val_loss:.4f}")
 
     def get_lr(self, iteration):
@@ -167,34 +168,47 @@ class Trainer:
     @torch.no_grad()
     def estimate_loss(self):
         """
-        Estimate the loss on train and validation sets
+        Estimate the loss on train and validation sets.
+        
+        Returns:
+            dict: Dictionary containing mean losses for 'train' and 'validation' splits
         """
         out = {}
         self.model.eval()
         for split in ['train', 'validation']:
-            losses = torch.zeros(self.training_config.eval_iters)
-            for k in range(self.training_config.eval_iters):
+            losses = torch.zeros(self.training_config.eval_steps)
+            for k in range(self.training_config.eval_steps):
                 X, Y = self.dataloader.get_batch(split)
-                with torch.no_grad():
-                    logits, loss = self.model(X, Y)
+                logits, loss = self.model(X, Y)
                 losses[k] = loss.item()
             out[split] = losses.mean()
         self.model.train()
         return out
     
     def save_checkpoint(self, name: str = 'ckpt.pt'):
+        """
+        Save a training checkpoint.
+        
+        Args:
+            name (str): Name of the checkpoint file
+        """
         checkpoint = {
-                    'model': self.model.state_dict(),
-                    'optimizer': self.optimizer.state_dict(),
-                    'model_args': self.model_args,
-                    'iter_num': self.iter_num,
-                    'best_val_loss': self.best_val_loss,
-                    'config': self.model.config,
-                    'wandb_run_id': wandb.run.id if wandb.run else None
-                }
+            'model': self.model.state_dict(),
+            'optimizer': self.optimizer.state_dict(),
+            'scaler': self.scaler.state_dict(),
+            'model_args': self.model_args,
+            'iter_num': self.iter_num,
+            'best_val_loss': self.best_val_loss,
+            'config': self.model.config,
+            'wandb_run_id': self.logger.get_run_id()
+        }
         ckpt_path = os.path.join(self.training_config.checkpoint_dir, name)
         print(f"saving checkpoint to {ckpt_path}. Best val loss so far: {self.best_val_loss:.4f} at iteration {self.iter_num}")
-        torch.save(checkpoint, ckpt_path)
+        
+        try:
+            torch.save(checkpoint, ckpt_path)
+        except Exception as e:
+            print(f"Warning: Failed to save checkpoint to {ckpt_path}: {e}")
 
     def evaluate(self):
         losses = self.estimate_loss()
@@ -217,8 +231,6 @@ class Trainer:
         metrics.update(self._get_memory_usage())
 
         self.logger.log_metrics(metrics, step=self.iter_num)
-
-        self.val_losses.append(losses['validation'])
 
         if losses['validation'] < self.best_val_loss:
             self.best_val_loss = losses['validation']
@@ -292,7 +304,8 @@ class Trainer:
                 
                 self.logger.log_metrics(step_metrics, step=self.iter_num)
 
-                if local_iter_num != 0 and self.iter_num % self.training_config.eval_iters == 0:
+                # Evaluate at regular intervals (including at iteration 0 for baseline)
+                if self.iter_num % self.training_config.eval_interval == 0:
                     self.evaluate()
                 
                 # Save checkpoint at intervals
@@ -383,7 +396,8 @@ class Trainer:
             'beta1': self.training_config.beta1,
             'beta2': self.training_config.beta2,
             'grad_clip': self.training_config.grad_clip,
-            'eval_iters': self.training_config.eval_iters,
+            'eval_interval': self.training_config.eval_interval,
+            'eval_steps': self.training_config.eval_steps,
             'compile': self.training_config.compile,
         }
         
