@@ -2,13 +2,9 @@ from datetime import datetime
 import os
 import time
 import math
-import mlflow
 import torch
-import psutil
-import platform
 from typing import Dict, Any
-from transformers import AutoModelForCausalLM
-from peft import LoraConfig, get_peft_model, TaskType
+from peft import LoraConfig, get_peft_model
 
 from src.config import FinetuneConfig, GPTConfig, LoggingConfig
 from src.trainer import DataLoader, Logger
