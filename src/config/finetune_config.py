@@ -8,5 +8,6 @@ class FinetuneConfig:
     gradient_accumulation_steps: int = 16
     grad_clip: float = 1.0
     checkpoint_interval: int = 1  # Save checkpoint every n epochs
-    eval_iters: int = 5  # Evaluate every n iterations
+    eval_interval: int = 5  # Evaluate every n iterations
+    eval_steps: int = 10  # Number of batches to use for evaluation
     checkpoint_dir: str = 'finetune_checkpoints'
