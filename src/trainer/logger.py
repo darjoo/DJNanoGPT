@@ -1,7 +1,7 @@
+from contextlib import suppress
+from functools import wraps
 import os
 import tempfile
-from typing import Dict, Optional
-from functools import wraps
 
 try:  # Optional dependency: wandb may not be installed
     import wandb  # type: ignore
@@ -13,15 +13,24 @@ from src.config import LoggingConfig
 
 def _requires_wandb(func):
     """Decorator to skip execution if wandb is not enabled or no active run."""
+
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         if not self.wandb_enabled or self._run is None:
             return None
         return func(self, *args, **kwargs)
+
     return wrapper
 
 
 class Logger:
+    """Logger class for tracking training metrics and artifacts.
+
+    Handles logging to Weights & Biases (wandb) with support for both
+    online and offline modes, local wandb servers, and graceful fallback
+    when wandb is not available.
+    """
+
     def __init__(self, logging_config: LoggingConfig):
         self.log_interval = logging_config.log_interval
         self.log_dir = logging_config.log_dir
@@ -30,29 +39,30 @@ class Logger:
         self.wandb_enabled = bool(logging_config.wandb and self._wandb is not None)
         self.wandb_config = logging_config
         self._run = None  # Cache for active wandb run
-        
+
         if logging_config.wandb and not self.wandb_enabled:
             print("Warning: wandb package is not available; disabling Weights & Biases logging.")
 
         if self.wandb_enabled:
             # Load environment variables only when wandb is enabled
             from dotenv import load_dotenv
+
             load_dotenv()
-            
+
             # Set base URL for local wandb server if specified
             if logging_config.wandb_base_url:
-                os.environ['WANDB_BASE_URL'] = logging_config.wandb_base_url
-                if not os.environ.get('WANDB_API_KEY'):
+                os.environ["WANDB_BASE_URL"] = logging_config.wandb_base_url
+                if not os.environ.get("WANDB_API_KEY"):
                     print("Warning: WANDB_API_KEY not found in environment variables. Please set it in .env file.")
                 print(f"Weights & Biases tracking configured with local server: {logging_config.wandb_base_url}")
-            
+
             print(f"Weights & Biases tracking configured. Project: {logging_config.wandb_project}")
             print(f"Mode: {logging_config.wandb_mode}")
-            if logging_config.wandb_mode == 'offline':
+            if logging_config.wandb_mode == "offline":
                 print(f"Running in offline mode. Logs will be saved to: {logging_config.wandb_dir}")
                 print(f"To sync later, run: wandb sync {logging_config.wandb_dir}/<run-folder>")
 
-    def start_run(self, run_id: str = None, run_name: str = None, tags: Dict[str, str] = None):
+    def start_run(self, run_id: str | None = None, run_name: str | None = None, tags: dict[str, str] | None = None):
         """Start a wandb run with optional tags and name."""
         if not self.wandb_enabled:
             return
@@ -65,7 +75,7 @@ class Logger:
             dir=self.wandb_config.wandb_dir,
             mode=self.wandb_config.wandb_mode,
             tags=list(tags.values()) if tags else None,
-            resume="allow" if run_id else None
+            resume="allow" if run_id else None,
         )
         # Log tags as config if provided
         if tags:
@@ -99,18 +109,16 @@ class Logger:
         """Log text content as an artifact."""
         temp_file = os.path.join(tempfile.gettempdir(), artifact_file)
         try:
-            with open(temp_file, 'w') as f:
+            with open(temp_file, "w") as f:
                 f.write(text)
             self._wandb.save(temp_file)
         finally:
             # Clean up temporary file
             if os.path.exists(temp_file):
-                try:
+                with suppress(OSError):
                     os.remove(temp_file)
-                except OSError:
-                    pass  # Ignore errors during cleanup
 
-    def get_run_id(self) -> Optional[str]:
+    def get_run_id(self) -> str | None:
         """Get the current run ID."""
         if self._run is not None:
             return self._run.id

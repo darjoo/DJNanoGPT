@@ -1,9 +1,9 @@
 import os
-from tqdm import tqdm
 
-import tiktoken
 from datasets import load_dataset
 import numpy as np
+import tiktoken
+from tqdm import tqdm
 
 # Number of parallel processes for tokenizing the dataset
 num_proc = 8
@@ -17,7 +17,7 @@ if __name__ == "__main__":
     dataset = load_dataset("roneneldan/TinyStories", num_proc=num_workers)
 
     split_dataset = dataset["train"].train_test_split(test_size=0.01, seed=42)
-    split_dataset["finetune"] = split_dataset.pop("test") # rename 'test' to 'finetune'
+    split_dataset["finetune"] = split_dataset.pop("test")  # rename 'test' to 'finetune'
     split_dataset["validation"] = dataset["validation"]
 
     print(split_dataset)
@@ -33,19 +33,17 @@ if __name__ == "__main__":
     #    })
     # })
 
-    assert split_dataset["train"] 
+    assert split_dataset["train"]
     assert split_dataset["validation"]
     assert split_dataset["finetune"]
 
     def process(example):
-        """
-        Tokenize the text
-        """
+        """Tokenize the text."""
         ids = enc.encode_ordinary(example["text"])
-        ids.append(enc.eot_token) # append the end of text token
+        ids.append(enc.eot_token)  # append the end of text token
         out = {"ids": ids, "len": len(ids)}
         return out
-    
+
     # Tokenize the dataset in parallel
     tokenized_dataset = split_dataset.map(
         process,
@@ -66,7 +64,7 @@ if __name__ == "__main__":
             # Batch together samples to write to disk
             batch = dset.shard(num_shards=total_batches, index=batch_idx, contiguous=True).with_format("numpy")
             arr_batch = np.concatenate(batch["ids"])
-    
+
             # Write into memmap
             arr[idx : idx + len(arr_batch)] = arr_batch
             idx += len(arr_batch)

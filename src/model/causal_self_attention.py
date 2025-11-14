@@ -5,14 +5,15 @@ import torch.nn.functional as F
 from ..config import GPTConfig
 from .rotary_embedding import RotaryEmbedding, apply_rotary_pos_emb
 
+
 class CausalSelfAttention(nn.Module):
-    """
-    Causal self-attention mechanism.
-    """
+    """Causal self-attention mechanism."""
 
     def __init__(self, config: GPTConfig):
         super().__init__()
-        assert config.hidden_size % config.num_attention_heads == 0, "Embedding dimension must be divisible by number of heads"
+        assert config.hidden_size % config.num_attention_heads == 0, (
+            "Embedding dimension must be divisible by number of heads"
+        )
 
         self.hidden_size = config.hidden_size
         self.n_head = config.num_attention_heads
@@ -43,6 +44,14 @@ class CausalSelfAttention(nn.Module):
             self.rotary_emb = None
 
     def forward(self, x: torch.Tensor):
+        """Forward pass of the causal self-attention mechanism.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, sequence_length, hidden_size).
+
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, sequence_length, hidden_size).
+        """
         batch_size, sequence_length, _ = x.size()
 
         # chunk(3) splits the projection into equal Q/K/V slices along the feature axis

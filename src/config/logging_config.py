@@ -1,11 +1,10 @@
 from dataclasses import dataclass
-from typing import Optional
+
 
 @dataclass
 class LoggingConfig:
-    """
-    Configuration for logging and checkpointing during training.
-    
+    """Configuration for logging and checkpointing during training.
+
     Attributes:
         log_interval (int): Number of iterations between logging training metrics.
         checkpoint_interval (int): Number of iterations between saving model checkpoints.
@@ -19,11 +18,11 @@ class LoggingConfig:
     """
 
     log_interval: int = 1
-    log_dir: str = 'logs'
+    log_dir: str = "logs"
 
     wandb: bool = True
-    wandb_project: str = 'gpt-training'
-    wandb_dir: str = './wandb'
+    wandb_project: str = "gpt-training"
+    wandb_dir: str = "./wandb"
     wandb_entity: str = None
-    wandb_mode: str = 'online'  # Use 'online' to sync with local Docker server
-    wandb_base_url: Optional[str] = None  # Provide a value when using a self-hosted Weights & Biases server
+    wandb_mode: str = "online"  # Use 'online' to sync with local Docker server
+    wandb_base_url: str | None = None  # Provide a value when using a self-hosted Weights & Biases server

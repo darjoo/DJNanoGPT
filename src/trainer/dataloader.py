@@ -1,4 +1,3 @@
-
 """Data loading utilities for training language models.
 
 This module provides:
@@ -17,7 +16,7 @@ class DataLoader:
     This class provides functionality to load and batch data from memory-mapped files
     for training, validation, or finetuning language models.
 
-    Attributes
+    Attributes:
     ----------
     data_dir : str
         Directory containing the data files.
@@ -32,7 +31,7 @@ class DataLoader:
     current_i : int
         Current index for sequential batch sampling.
 
-    Methods
+    Methods:
     -------
     get_data_size(split: str) -> int
         Get the size of the dataset for a given split.
@@ -119,8 +118,8 @@ class DataLoader:
         else:
             ix = torch.arange(self.current_i, self.current_i + self.batch_size) % max_idx
             self.current_i = (self.current_i + self.batch_size) % max_idx
-        x = torch.stack([torch.from_numpy((data[i:i+self.block_size]).astype(np.int64)) for i in ix])
-        y = torch.stack([torch.from_numpy((data[i+1:i+self.block_size+1]).astype(np.int64)) for i in ix])
+        x = torch.stack([torch.from_numpy((data[i : i + self.block_size]).astype(np.int64)) for i in ix])
+        y = torch.stack([torch.from_numpy((data[i + 1 : i + self.block_size + 1]).astype(np.int64)) for i in ix])
         if self.device == "cuda":
             # Pin arrays x & y, which allows us to move them to GPU asynchronously (non_blocking=True)
             x, y = x.pin_memory().to(self.device, non_blocking=True), y.pin_memory().to(self.device, non_blocking=True)
